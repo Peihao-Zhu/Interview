@@ -1,3 +1,7 @@
+[TOC]
+
+
+
 ## 重写和重载的区别
 
 1. **重写**
@@ -343,4 +347,377 @@ https://upload-images.jianshu.io/upload_images/7853175-ab75cd3738471507.png?imag
 如果在取链表的时候从头开始取（现在是从尾部开始取）的话，则可以保证节点之间的顺序，那样就不存在这样的问题了。
 
 综合上面两点，可以说明HashMap是线程不安全的。
+
+
+
+## final/static关键字
+
+### final
+
+**1.数据**
+
+声明数据为常量，可以是编译时常量，也可以是在运行时被初始化后不能被改变的常量。
+
+- 对于基本类型，final 使数值不变；
+- 对于引用类型，final 使引用不变，也就不能引用其它对象，但是被引用的对象本身是可以修改的。
+
+```java
+final int x = 1;
+// x = 2;  // cannot assign value to final variable 'x'
+final A y = new A();
+y.a = 1;
+```
+
+**2.方法**
+
+声明方法不能被子类重写。
+
+private 方法隐式地被指定为 final，如果在子类中定义的方法和基类中的一个 private 方法签名相同，此时子类的方法不是重写基类方法，而是在子类中定义了一个新的方法。
+
+**3.类**
+
+声明类不允许被继承。
+
+
+
+### static
+
+**1.静态变量**
+
+- 静态变量：又称为类变量，也就是说这个变量属于类的，类所有的实例都共享静态变量，可以直接通过类名来访问它。静态变量在内存中只存在一份。
+- 实例变量：每创建一个实例就会产生一个实例变量，它与该实例同生共死。
+
+**2.静态方法**
+
+静态方法在类加载的时候就存在了，它不依赖于任何实例。所以静态方法必须有实现，也就是说它不能是抽象方法。
+
+```java
+public abstract class A {
+    public static void func1(){
+    }
+    // public abstract static void func2();  // Illegal combination of modifiers: 'abstract' and 'static'
+}
+
+```
+
+只能访问所属类的静态字段和静态方法，方法中不能有 this 和 super 关键字，因此这两个关键字与具体对象关联。
+
+**3.静态语句块**
+
+静态语句块在类初始化时运行一次。
+
+**4.静态内部类**
+
+非静态内部类依赖于外部类的实例，也就是说需要先创建外部类实例，才能用这个实例去创建非静态内部类。而静态内部类不需要。
+
+静态内部类不能访问外部类的非静态的变量和方法。
+
+
+
+**5.初始化顺序**
+
+静态变量和静态语句块优先于实例变量和普通语句块，静态变量和静态语句块的初始化顺序取决于它们在代码中的顺序。
+
+最后才是构造函数的初始化
+
+在继承的情况下，初始化顺序为：
+
+- 父类（静态变量、静态语句块）
+- 子类（静态变量、静态语句块）
+- 父类（实例变量、普通语句块）
+- 父类（构造函数）
+- 子类（实例变量、普通语句块）
+- 子类（构造函数）
+
+
+
+## 继承
+
+### 访问权限
+
+Java 中有三个访问权限修饰符：private、protected 以及 public，如果不加访问修饰符，表示包级可见。
+
+可以对类或类中的成员（字段和方法）加上访问修饰符。
+
+- 类可见表示其它类可以用这个类创建实例对象。
+- 成员可见表示其它类可以用这个类的实例对象访问到该成员；
+
+如果子类的方法重写了父类的方法，那么子类中该方法的访问级别不允许低于父类的访问级别。这是为了确保可以使用父类实例的地方都可以使用子类实例去代替，也就是确保满足里氏替换原则。
+
+字段决不能是公有的，因为这么做的话就失去了对这个字段修改行为的控制，客户端可以对其随意修改。例如下面的例子中，AccessExample 拥有 id 公有字段，如果在某个时刻，我们想要使用 int 存储 id 字段，那么就需要修改所有的客户端代码。
+
+### 抽象类和接口
+
+**抽象类**
+
+抽象类和抽象方法都使用 abstract 关键字进行声明。如果一个类中包含抽象方法，那么这个类必须声明为抽象类。
+
+- 抽象类和普通类最大的区别是，抽象类不能被实例化，只能被继承。但是抽象类可以有构造方法，供子类创建对象，初始化父类使用。
+
+- 子类如果实现抽象类，就必须实现父类所有的抽象方法
+- 
+
+**接口**
+
+接口是抽象类的延伸，在 Java 8 之前，它可以看成是一个完全抽象的类，也就是说它不能有任何的方法实现。
+
+从 Java 8 开始，接口也可以拥有默认的方法实现，这是因为不支持默认方法的接口的维护成本太高了。在 Java 8 之前，如果一个接口想要添加新的方法，那么要修改所有实现了该接口的类，让它们都实现新增的方法。
+
+接口的成员（字段 + 方法）默认都是 public 的，并且不允许定义为 private 或者 protected。
+
+接口的字段默认都是 static 和 final 的（可以直接通过接口名来访问）。
+
+**比较**
+
+- 从设计层面上看，抽象类提供了一种 IS-A 关系，需要满足里式替换原则，即子类对象必须能够替换掉所有父类对象。而接口更像是一种 LIKE-A 关系，它只是提供一种方法实现契约，并不要求接口和实现接口的类具有 IS-A 关系。
+- 从使用上来看，一个类可以实现多个接口，但是不能继承多个抽象类。
+- 接口的字段只能是 static 和 final 类型的，而抽象类的字段没有这种限制。
+- 接口的成员只能是 public 的，而抽象类的成员可以有多种访问权限。
+
+**使用选择**
+
+使用接口：
+
+- 需要让不相关的类都实现一个方法，例如不相关的类都可以实现 Comparable 接口中的 compareTo() 方法；
+- 需要使用多重继承。
+
+使用抽象类：
+
+- 需要在几个相关的类中共享代码。
+- 需要能控制继承来的成员的访问权限，而不是都为 public。
+- 需要继承非静态和非常量字段。
+
+在很多情况下，接口优先于抽象类。因为接口没有抽象类严格的类层次结构要求，可以灵活地为一个类添加行为。并且从 Java 8 开始，接口也可以有默认的方法实现，使得修改接口的成本也变的很低。
+
+### super
+
+- 访问父类的构造函数：可以使用 super() 函数访问父类的构造函数，从而委托父类完成一些初始化的工作。应该注意到，子类一定会调用父类的构造函数来完成初始化工作，一般是调用父类的默认构造函数，如果子类需要调用父类其它构造函数，那么就可以使用 super() 函数。
+- 访问父类的成员：如果子类重写了父类的某个方法，可以通过使用 super 关键字来引用父类的方法实现。
+
+
+
+## 反射
+
+每个类都有一个 **Class** 对象，包含了与类有关的信息。当编译一个新类时，会产生一个同名的 .class 文件，该文件内容保存着 Class 对象。
+
+类加载相当于 Class 对象的加载，类在第一次使用时才动态加载到 JVM 中。也可以使用 `Class.forName("com.mysql.jdbc.Driver")` 这种方式来控制类的加载，该方法会返回一个 Class 对象。
+
+反射可以提供运行时的类信息，并且这个类可以在运行时才加载进来，甚至在编译时期该类的 .class 不存在也可以加载进来。
+
+Class 和 java.lang.reflect 一起对反射提供了支持，java.lang.reflect 类库主要包含了以下三个类：
+
+- **Field** ：可以使用 get() 和 set() 方法读取和修改 Field 对象关联的字段；
+- **Method** ：可以使用 invoke() 方法调用与 Method 对象关联的方法；
+- **Constructor** ：可以用 Constructor 的 newInstance() 创建新的对象。
+
+**反射的优点：**
+
+- **可扩展性** ：应用程序可以利用全限定名创建可扩展对象的实例，来使用来自外部的用户自定义类。
+- **类浏览器和可视化开发环境** ：一个类浏览器需要可以枚举类的成员。可视化开发环境（如 IDE）可以从利用反射中可用的类型信息中受益，以帮助程序员编写正确的代码。
+- **调试器和测试工具** ： 调试器需要能够检查一个类里的私有成员。测试工具可以利用反射来自动地调用类里定义的可被发现的 API 定义，以确保一组测试中有较高的代码覆盖率。
+
+**反射的缺点：**
+
+尽管反射非常强大，但也不能滥用。如果一个功能可以不用反射完成，那么最好就不用。在我们使用反射技术时，下面几条内容应该牢记于心。
+
+- **性能开销** ：反射涉及了动态类型的解析，所以 JVM 无法对这些代码进行优化。因此，反射操作的效率要比那些非反射操作低得多。我们应该避免在经常被执行的代码或对性能要求很高的程序中使用反射。
+- **安全限制** ：使用反射技术要求程序必须在一个没有安全限制的环境中运行。如果一个程序必须在有安全限制的环境中运行，如 Applet，那么这就是个问题了。
+- **内部暴露** ：由于反射允许代码执行一些在正常情况下不被允许的操作（比如访问私有的属性和方法），所以使用反射可能会导致意料之外的副作用，这可能导致代码功能失调并破坏可移植性。反射代码破坏了抽象性，因此当平台发生改变的时候，代码的行为就有可能也随着变化。
+
+### Class类详解
+
+https://blog.csdn.net/dufufd/article/details/80537638
+
+ 在java世界里，一切皆对象。从某种意义上来说，java有两种对象：实例对象和Class对象。每个类的运行时的**类型信息**就是用Class对象表示的。它包含了与类有关的信息。其实我们的实例对象就通过Class对象来创建的。Java使用Class对象执行其RTTI（运行时类型识别，Run-Time Type Identification），多态是基于RTTI实现的。
+
+  每一个类都有一个Class对象，每当编译一个新类就产生一个Class对象，基本类型 (boolean, byte, char, short, int, long, float, and double)有Class对象，数组有Class对象，就连关键字void也有Class对象（void.class）。Class对象对应着java.lang.Class类，如果说类是对象抽象和集合的话，那么Class类就是对类的抽象和集合。
+
+  Class类没有公共的构造方法，Class对象是在类加载的时候由**Java虚拟机**以及通过调用类加载器中的 defineClass 方法自动构造的，因此不能显式地声明一个Class对象。一个类被加载到内存并供我们使用需要经历如下三个阶段：
+
+1. **加载**，这是由类加载器（ClassLoader）执行的。通过一个类的全限定名来获取其定义的二进制字节流（Class字节码），将这个字节流所代表的静态存储结构转化为方法区的运行时数据接口，根据字节码在java堆中生成一个代表这个类的java.lang.Class对象。
+2. **链接**。在链接阶段将验证Class文件中的字节流包含的信息是否符合当前虚拟机的要求，为静态域分配存储空间并设置类变量的初始值（默认的零值），并且如果必需的话，将常量池中的符号引用转化为直接引用。
+3. **初始化**。到了此阶段，才真正开始执行类中定义的java程序代码。用于执行该类的静态初始器和静态初始块，如果该类有父类的话，则优先对其父类进行初始化。
+
+  
+  **所有的类都是在对其第一次使用时，动态加载到JVM中的（懒加载）。**当程序创建第一个对类的静态成员的引用时，就会加载这个类。使用new创建类对象的时候也会被当作对类的静态成员的引用。**因此java程序程序在它开始运行之前并非被完全加载，其各个类都是在必需时才加载的。**这一点与许多传统语言都不同。动态加载使能的行为，在诸如C++这样的静态加载语言中是很难或者根本不可能复制的。
+
+  在类加载阶段，类加载器首先检查这个类的Class对象是否已经被加载。如果尚未加载，默认的类加载器就会根据类的全限定名查找.class文件。在这个类的字节码被加载时，它们会接受验证，以确保其没有被破坏，并且不包含不良java代码。一旦某个类的Class对象被载入内存，我们就可以它来创建这个类的所有对象。
+
+
+
+**那么如何获取这个Class对象呢？**
+
+- Obj.getClass();
+- Class.forName("类名");
+- 具体类名.class
+
+**有了这个Class对象，如何获取类的对象**
+
+可以通过Class对象来调用newInstance()方法，这种形式默认调用的事无餐构造来返回一个对象。
+
+
+
+### Class.forName()/getClass()/Class.class区别
+
+https://www.cnblogs.com/Seachal/p/5371733.html
+
+1.出现时机：**Class.forName()**是在运行时加载，**Class.class** **和getClass（）**是在编译时期加载
+
+2.**Class.forName**是一个静态方法，**Class.class**是所有类的一个属性，**getClass()**是所有对象（Object类的对象）的成员方法
+
+
+
+3.生成Class对象
+
+**Class.class** 的形式会使 JVM 将使用类装载器将类装入内存（前提是类还没有装入内存），不做类的初始化工作，返回 Class 对象。
+
+这样做不仅更简单，而且更安全，因为它在编译时就会受到检查(因此不需要置于try语句块中)。并且根除了对forName()方法的调用，所有也更高效。类字面量不仅可以应用于普通的类，也可以应用于接口、数组及基本数据类型。
+
+注意：基本数据类型的Class对象和包装类的Class对象是不一样的：
+
+```java
+Class c1 = Integer.class;
+Class c2 = int.class;
+System.out.println(c1);
+System.out.println(c2);
+System.out.println(c1 == c2);
+/* Output
+class java.lang.Integer
+int
+false
+*/
+```
+
+**Class.forName()**会调用类加载器去加载类并做类的静态初始化，返回 Class 对象。
+
+**getClass（）** 的形式会对类进行静态初始化、非静态初始化，返回引用运行时真正所指的对象（因为子对象的引用可能会赋给父对象的引用变量中）所属的类的 Class 对象。
+
+使用new 创建一个对象实例的时候，就自动加载这个类到内存中，并进行初始化。，所以执行d.getClass()的时候就直接从堆中返回该类Class引用
+
+```java
+package com.cry;
+class Dog {
+    static {
+        System.out.println("Loading Dog");
+    }
+}
+public class Test {
+    public static void main(String[] args) {
+        System.out.println("inside main");
+        Dog d = new Dog();
+        System.out.println("after creating Dog");
+        Class c = d.getClass();
+        System.out.println("finish main");
+    }
+}
+/*　Output:
+    inside main
+    Loading Dog
+    after creating Dog
+    finish main
+ */
+```
+
+下面的代码表示.class 和Class.forName()是否会引起初始化。
+
+  **如果一个字段被static final修饰，我们称为”编译时常量“，就像Dog的s1字段那样，那么在调用这个字段的时候是不会对Dog类进行初始化的。**因为被static和final修饰的字段，在编译期就把结果放入了常量池中了。但是，如果只是将一个域设置为static 或final的，还不足以确保这种行为，就如调用Dog的s2字段后，会强制Dog进行类的初始化，因为s2字段不是一个编译时常量。
+
+```java
+package com.cry;
+class Dog {
+    static final String s1 = "Dog_s1";
+    static  String s2 = "Dog_s2";
+    static {
+        System.out.println("Loading Dog");
+    }
+}
+class Cat {
+    static String s1 = "Cat_s1";
+    static {
+        System.out.println("Loading Cat");
+    }
+}
+public class Test {
+    public static void main(String[] args) throws ClassNotFoundException {
+        System.out.println("----Star Dog----");
+        Class dog = Dog.class;
+        System.out.println("------");
+        System.out.println(Dog.s1);
+        System.out.println("------");
+        System.out.println(Dog.s2);
+        System.out.println("---start Cat---");
+        Class cat = Class.forName("com.cry.Cat");
+        System.out.println("-------");
+        System.out.println(Cat.s1);
+        System.out.println("finish main");
+    }
+}
+/*　Output:
+----Star Dog----
+------
+Dog_s1
+------
+Loading Dog
+Dog_s2
+---start Cat---
+Loading Cat
+-------
+Cat_s1
+finish main
+ */
+```
+
+一旦一个类被加载进内存以后，返回的Class对象都是同一个java堆地址上的Class引用
+
+```java
+package com.cry;
+class Cat {
+    static {
+        System.out.println("Loading Cat");
+    }
+}
+public class Test {
+    public static void main(String[] args) throws ClassNotFoundException {
+        System.out.println("inside main");
+        Class c1 = Cat.class;
+        Class c2= Class.forName("com.cry.Cat");
+        Class c3=new Cat().getClass();
+        Class c4 =new Cat().getClass();
+        System.out.println(c1==c2);
+        System.out.println(c2==c3);
+        System.out.println("finish main");
+    }
+}
+/*　Output:
+inside main
+-------
+Loading Cat
+true
+true
+finish main
+ */
+```
+
+
+
+ **其实对于任意一个Class对象，都需要由它的类加载器和这个类本身一同确定其在Java虚拟机中的唯一性，也就是说，即使两个Class对象来源于同一个Class文件，只要加载它们的类加载器不同，那这两个Class对象就必定不相等。**这里的“相等”包括了代表类的Class对象的equals（）、isAssignableFrom（）、isInstance（）等方法的返回结果，也包括了使用instanceof关键字对对象所属关系的判定结果。所以在java虚拟机中使用**双亲委派模型**来组织类加载器之间的关系，来保证Class对象的唯一性。
+
+
+
+**生成Class 对象的过程**
+
+编写一个java类时，JVM会帮我们编译成Class 对象，存放在同名的.class文件里，在运行时，当需要生产这个类的对象，JVM会检查此类是否已经装载进内存。若没有，就会把.class文件装入内存。若已经装载，会根据class文件生成实例对象。
+
+
+
+## final、finally、finalize的区别
+
+https://blog.csdn.net/cyl101816/article/details/67640843
+
+**final：**前文已经有描述
+
+**finally:**是在异常处理时提供finally块来执行任何清除操作。不管有没有异常被抛出、捕获，finally块都会被执行。try块中的内容是在无异常时执行到结束。catch块中的内容，是在try块内容发生catch所声明的异常时，跳转到catch块中执行。finally块则是无论异常是否发生，都会执行finally块的内容，所以在代码逻辑中有需要无论发生什么都必须执行的代码，就可以放在finally块中。
+
+**finalize:**是方法名。java技术允许使用finalize（）方法在垃圾收集器将对象从内存中清除出去之前做必要的清理工作。这个方法是由垃圾收集器在确定这个对象没有被引用时，会自动调用这个方法。它是在object类中定义的，因此所有的类都继承了它。子类覆盖finalize（）方法以整理系统资源或者被执行其他清理工作。finalize（）方法是在垃圾收集器删除对象之前对这个对象调用的。 
+				但是finalize（）调用时机并不确定，有时候资源已经耗尽，但是gc仍然没有触发，所以不能依赖finalize()来回收占用的资源。
 
