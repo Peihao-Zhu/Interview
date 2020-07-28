@@ -83,7 +83,7 @@ https://blog.csdn.net/qq_39751320/article/details/106193277
 
 
 
-### HashMap
+## HashMap
 
 cnblogs.com/Young111/p/11519952.html?utm_source=gold_browser_extension
 
@@ -347,6 +347,30 @@ https://upload-images.jianshu.io/upload_images/7853175-ab75cd3738471507.png?imag
 如果在取链表的时候从头开始取（现在是从尾部开始取）的话，则可以保证节点之间的顺序，那样就不存在这样的问题了。
 
 综合上面两点，可以说明HashMap是线程不安全的。
+
+
+
+## ArrayList/LinkedList
+
+### ArrayList
+
+基于数组实现的，默认大小是10。添加元素时如果数组容量不够，就使用grow（）方法进行扩容，新容量的大小是原大小的1.5倍。扩容操作需要调用Arrays.copyOf()把原数组整个复制到新数组中。可见扩容的代价很高
+
+```java
+oldCapacity + (oldCapacity >> 1)
+```
+
+**删除元素**
+
+需要调用Systems.arraycopy()将index+1后面的元素都复制到index位置上
+
+**Fail-Fast**
+
+modeCount用来记录ArrayList结构发生变化的次数，在进行序列化或者迭代等操作时，需要比较前后的modCount是否改变，如果改变了会抛出ConcurrentModificationException
+
+### LinkedList
+
+双向链表实现
 
 
 
@@ -720,4 +744,47 @@ https://blog.csdn.net/cyl101816/article/details/67640843
 
 **finalize:**是方法名。java技术允许使用finalize（）方法在垃圾收集器将对象从内存中清除出去之前做必要的清理工作。这个方法是由垃圾收集器在确定这个对象没有被引用时，会自动调用这个方法。它是在object类中定义的，因此所有的类都继承了它。子类覆盖finalize（）方法以整理系统资源或者被执行其他清理工作。finalize（）方法是在垃圾收集器删除对象之前对这个对象调用的。 
 				但是finalize（）调用时机并不确定，有时候资源已经耗尽，但是gc仍然没有触发，所以不能依赖finalize()来回收占用的资源。
+
+
+
+## java创建对象的四种方式
+
+- new 关键字创建一个对象
+
+是最常规的创建方式。类会经过加载，初始化和实例化。
+
+- 反射
+
+1）Class.forName("类名")
+
+​	使用Class.forName("类名")先获取这个类的Class 对象，然后调用Class内部的newInstance()方法，默认调用无餐构造函数。
+
+2）Constructor类的newInstance方法
+
+​	和前一个方式很像，在java.lang.reflect.Constructor类里也有一个newInstance方法，可以通过这个方法调用有参和无参的构造函数。
+
+```java
+//先获取Person的Class对象，然后通过这个对象获取构造器。
+Constructor<Person> constructor = Person.class.getConstructor();
+//使用构造器的newInstance方法
+Person person3 = constructor.newInstance();
+```
+
+
+
+- clone
+
+  是Object里面的一个方法，protected类型，子类不可见行，所以必须重写这个clone()方法。要注意，需要实现clonable接口，否则会报java.lang.CloneNotSupportedException。
+
+  clone（）出来的对象其实是**浅拷贝**：创建一个新对象，然后将当前对象的非静态字段复制到该对象，如果字段类型是值类型（基本类型）的，那么对该字段进行复制；如果字段是引用类型的，则只复制该字段的引用而不复制引用指向的对象。此时新对象里面的引用类型字段相当于是原始对象里面引用类型字段的一个副本，原始对象与新对象里面的引用字段指向的是同一个对象。
+
+  **深拷贝：**和浅拷贝相对，把引用的对象也复制一遍。
+
+- 反序列化
+
+  在反序列化的时候jvm会创建一个单独的对象，但是不会调用任何构造函数。为了实现序列化/反序列化，需要实现Seralizable接口
+
+## 序列化和反序列化
+
+https://blog.csdn.net/qq_39751320/article/details/106328194
 

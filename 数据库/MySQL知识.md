@@ -522,3 +522,15 @@ binlog属于MySQL Server层面，称为归档日志，以二进制形式记录�
 ## 13 ★★☆  union和union all的区别
 
 https://blog.csdn.net/wanghai__/article/details/4712555
+
+这两个字段都是对查询结果取 **并集**，但是区别是：
+
+- Union不包括重复的行，而union all会包括重复行
+- union还会按照默认的规则进行排序，union all不会
+
+具体的例子可以参考前面给出的博客：
+
+
+
+**注意：**这里的默认规则是指如果使用select * 则对ID进行排序，如果是select score,name ...则会对score进行排序。当然也可以通过order by来自定义，但是order by字段必须加在最后一个查询语句的后面。
+
