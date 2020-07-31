@@ -562,7 +562,7 @@ https://blog.csdn.net/dufufd/article/details/80537638
 2. **链接**。在链接阶段将验证Class文件中的字节流包含的信息是否符合当前虚拟机的要求，为静态域分配存储空间并设置类变量的初始值（默认的零值），并且如果必需的话，将常量池中的符号引用转化为直接引用。
 3. **初始化**。到了此阶段，才真正开始执行类中定义的java程序代码。用于执行该类的静态初始器和静态初始块，如果该类有父类的话，则优先对其父类进行初始化。
 
-  
+
   **所有的类都是在对其第一次使用时，动态加载到JVM中的（懒加载）。**当程序创建第一个对类的静态成员的引用时，就会加载这个类。使用new创建类对象的时候也会被当作对类的静态成员的引用。**因此java程序程序在它开始运行之前并非被完全加载，其各个类都是在必需时才加载的。**这一点与许多传统语言都不同。动态加载使能的行为，在诸如C++这样的静态加载语言中是很难或者根本不可能复制的。
 
   在类加载阶段，类加载器首先检查这个类的Class对象是否已经被加载。如果尚未加载，默认的类加载器就会根据类的全限定名查找.class文件。在这个类的字节码被加载时，它们会接受验证，以确保其没有被破坏，并且不包含不良java代码。一旦某个类的Class对象被载入内存，我们就可以它来创建这个类的所有对象。
@@ -787,4 +787,684 @@ Person person3 = constructor.newInstance();
 ## 序列化和反序列化
 
 https://blog.csdn.net/qq_39751320/article/details/106328194
+
+不会对静态变量进行序列化，因为只保存对象的状态，而静态变量时类的状态。
+
+可以通过重写序列化和反序列化的方法，使只序列化 需要的那部分数据(ArrayList中的数组用transient修饰)
+
+
+
+## Java NIO
+
+**流与块**（缓冲区）
+
+I/O 与 NIO 最重要的区别是数据打包和传输的方式，I/O 以流的方式处理数据，而 NIO 以块的方式处理数据。
+
+面向流的 I/O 一次处理一个字节数据：一个输入流产生一个字节数据，一个输出流消费一个字节数据。为流式数据创建过滤器非常容易，链接几个过滤器，以便每个过滤器只负责复杂处理机制的一部分。不利的一面是，面向流的 I/O 通常相当慢。
+
+面向块的 I/O 一次处理一个数据块，按块处理数据比按流处理数据要快得多。但是面向块的 I/O 缺少一些面向流的 I/O 所具有的优雅性和简单性。
+
+**阻塞和非阻塞IO**
+
+Java IO的各种流是阻塞的。这意味着，当一个线程调用read() 或 write()时，该线程被阻塞，直到有一些数据被读取，或数据完全写入。该线程在此期间不能再干任何事情了。 Java NIO的非阻塞模式，使一个线程从某通道发送请求读取数据，但是它仅能得到目前可用的数据，如果目前没有数据可用时，就什么都不会获取。而不是保持线程阻塞，所以直至数据变的可以读取之前，该线程可以继续做其他的事情。 非阻塞写也是如此。一个线程请求写入一些数据到某通道，但不需要等待它完全写入，这个线程同时可以去做别的事情。 线程通常将非阻塞IO的空闲时间用于在其它通道上执行IO操作，所以一个单独的线程现在可以管理多个输入和输出通道（channel）。
+
+
+
+**通道**
+
+通道 Channel 是对原 I/O 包中的流的模拟，可以通过它读取和写入数据。
+
+通道与流的不同之处在于，流只能在一个方向上移动(一个流必须是 InputStream 或者 OutputStream 的子类)，而通道是双向的，可以用于读、写或者同时用于读写。
+
+通道包括以下类型：
+
+- FileChannel：从文件中读写数据；
+- DatagramChannel：通过 UDP 读写网络中数据；
+- SocketChannel：通过 TCP 读写网络中数据；
+- ServerSocketChannel：可以监听新进来的 TCP 连接，对每一个新进来的连接都会创建一个 SocketChannel。
+
+**缓冲区**
+
+发送给一个通道的所有数据都必须首先放到缓冲区中，同样地，从通道中读取的任何数据都要先读到缓冲区中。也就是说，不会直接对通道进行读写数据，而是要先经过缓冲区。
+
+缓冲区实质上是一个数组，但它不仅仅是一个数组。缓冲区提供了对数据的结构化访问，而且还可以跟踪系统的读/写进程。
+
+缓冲区包括以下类型：
+
+- ByteBuffer
+- CharBuffer
+- ShortBuffer
+- IntBuffer
+- LongBuffer
+- FloatBuffer
+- DoubleBuffer
+
+
+
+**缓冲区状态变量**
+
+- capacity：最大容量；如果缓冲区满了，需要读数据，或者清除数据，然后在往里写数据
+- position：当前已经读写的字节数；
+- limit：还可以读写的字节数。在写模式下limit=capacity，在读模式下limit=position
+
+状态变量的改变过程举例：
+
+① 新建一个大小为 8 个字节的缓冲区，此时 position 为 0，而 limit = capacity = 8。capacity 变量不会改变，下面的讨论会忽略它。
+
+![img](https://cs-notes-1256109796.cos.ap-guangzhou.myqcloud.com/1bea398f-17a7-4f67-a90b-9e2d243eaa9a.png)
+
+
+
+② 从输入通道中读取 5 个字节数据写入缓冲区中，此时 position 为 5，limit 保持不变。
+
+![img](https://cs-notes-1256109796.cos.ap-guangzhou.myqcloud.com/80804f52-8815-4096-b506-48eef3eed5c6.png)
+
+
+
+③ 在将缓冲区的数据写到输出通道之前，需要先调用 flip() 方法，这个方法将 limit 设置为当前 position，并将 position 设置为 0。
+
+![img](https://cs-notes-1256109796.cos.ap-guangzhou.myqcloud.com/952e06bd-5a65-4cab-82e4-dd1536462f38.png)
+
+
+
+④ 从缓冲区中取 4 个字节到输出缓冲中，此时 position 设为 4。
+
+![img](https://cs-notes-1256109796.cos.ap-guangzhou.myqcloud.com/b5bdcbe2-b958-4aef-9151-6ad963cb28b4.png)
+
+
+
+⑤ 最后需要调用 clear() 方法来清空缓冲区，此时 position 和 limit 都被设置为最初位置（里面的数据没有清楚，只是这几个变量的值修改了）。
+
+![img](https://cs-notes-1256109796.cos.ap-guangzhou.myqcloud.com/67bf5487-c45d-49b6-b9c0-a058d8c68902.png)
+
+**选择器**
+
+NIO 常常被叫做非阻塞 IO，主要是因为 NIO 在网络通信中的非阻塞特性被广泛使用。
+
+NIO 实现了 IO 多路复用中的 Reactor 模型，一个线程 Thread 使用一个选择器 Selector 通过轮询的方式去监听多个通道 Channel 上的事件，从而让一个线程就可以处理多个事件。
+
+通过配置监听的通道 Channel 为非阻塞，那么当 Channel 上的 IO 事件还未到达时，就不会进入阻塞状态一直等待，而是继续轮询其它 Channel，找到 IO 事件已经到达的 Channel 执行。
+
+因为创建和切换线程的开销很大，因此使用一个线程来处理多个事件而不是一个线程处理一个事件，对于 IO 密集型的应用具有很好地性能。
+
+应该注意的是，只有套接字 Channel 才能配置为非阻塞，而 FileChannel 不能，为 FileChannel 配置非阻塞也没有意义。
+
+![img](https://cs-notes-1256109796.cos.ap-guangzhou.myqcloud.com/093f9e57-429c-413a-83ee-c689ba596cef.png)
+
+```java
+//创建选择器
+Selector selector = Selector.open();
+//将通道注册到选择器上
+ServerSocketChannel ssChannel = ServerSocketChannel.open();
+ssChannel.configureBlocking(false);  //可以进行异步调用
+ssChannel.register(selector, SelectionKey.OP_ACCEPT);
+//监听事件
+int num = selector.select();
+//获取到达的事件
+Set<SelectionKey> keys = selector.selectedKeys();
+Iterator<SelectionKey> keyIterator = keys.iterator();
+while (keyIterator.hasNext()) {
+    SelectionKey key = keyIterator.next();
+    if (key.isAcceptable()) {
+        // ...
+    } else if (key.isReadable()) {
+        // ...
+    }
+    keyIterator.remove();
+}
+```
+
+通道必须配置为非阻塞模式，否则使用选择器就没有任何意义了，因为如果通道在某个事件上被阻塞，那么服务器就不能响应其它事件，必须等待这个事件处理完毕才能去处理其它事件，显然这和选择器的作用背道而驰。
+
+在将通道注册到选择器上时，还需要指定要注册的具体事件，主要有以下几类：
+
+- SelectionKey.OP_CONNECT
+- SelectionKey.OP_ACCEPT
+- SelectionKey.OP_READ
+- SelectionKey.OP_WRITE
+
+## Java socket
+
+https://www.jianshu.com/p/cde27461c226
+
+### 基本原理
+
+![img](https://upload-images.jianshu.io/upload_images/206633-2d6f4a3abcd59745.png?imageMogr2/auto-orient/strip|imageView2/2/w/1064/format/webp)
+
+socket是基于TCP/IP通信的一个抽象，对复杂的通信逻辑进行封装，提供简单的API实现网络连接。下面是一组socket通信图
+
+![img](https://upload-images.jianshu.io/upload_images/206633-4b2d8622b6d9d48d.png?imageMogr2/auto-orient/strip|imageView2/2/w/696/format/webp)
+
+### 最基本的实例
+
+服务端
+
+```java
+public static void main(String[] args) {
+try {
+
+						// 初始化服务端socket并且绑定9999端口
+            ServerSocket serverSocket  =new ServerSocket(9999);
+            //等待客户端的连接
+            Socket socket = serverSocket.accept();
+            //获取输入流
+            BufferedReader bufferedReader =new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            //读取一行数据
+            String str = bufferedReader.readLine();
+            //输出打印
+            System.out.println(str);
+        }catch (IOException e) {
+e.printStackTrace();
+        }
+}
+}
+```
+
+客户端
+
+```java
+public static void main(String[] args) {
+try {
+Socket socket =new Socket("127.0.0.1",9999);
+            BufferedWriter bufferedWriter =new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
+            String str="你好，这是我的第一个socket";
+            bufferedWriter.write(str);
+  
+  					//加了下面这两行代码，就可以让服务端正常接受数据了
+  					//刷新输入流
+            bufferedWriter.flush();
+            //关闭socket的输出流
+            socket.shutdownOutput();
+
+        }catch (IOException e) {
+e.printStackTrace();
+        }
+}
+}
+```
+
+先启动服务端后会在accept（）处阻塞，等待客户端的连接。然后开启客户端，客户端的程序会马上关闭，但是服务器端会报错。原因就是服务器端在执行read方法时会阻塞，一直等客户端的数据发送完毕，但是上面客户端没有发送消息结束的标志符，所以服务端一直在等待。
+
+通常大家会用以下方法进行进行结束：
+
+socket.close() 或者调用socket.shutdownOutput();方法。调用这俩个方法，都会结束客户端socket。但是有本质的区别。socket.close() 将socket关闭连接，那边如果有服务端给客户端反馈信息，此时客户端是收不到的。而socket.shutdownOutput()是将输出流关闭，此时，如果服务端有信息返回，则客户端是可以正常接受的。
+
+那么如果不使用上面两种方式，服务端如何判断客户端是否已经发送完数据呢？可以通过双方约定一个标志符
+
+比如下面例子
+
+服务端----增加了while循环判断是否接受完毕
+
+```java
+// 初始化服务端socket并且绑定9999端口
+           ServerSocket serverSocket  =new ServerSocket(9999);
+            //等待客户端的连接
+            Socket socket = serverSocket.accept();
+            //获取输入流,并且指定统一的编码格式
+            BufferedReader bufferedReader =new BufferedReader(new InputStreamReader(socket.getInputStream(),"UTF-8"));
+            //读取一行数据
+            String str;
+            //通过while循环不断读取信息，
+            while ((str = bufferedReader.readLine())!=null){
+//输出打印
+                System.out.println(str);
+            }
+
+```
+
+客户端---每次发送一行的数据并且加上换行符
+
+```java
+						//初始化一个socket
+            Socket socket =new Socket("127.0.0.1",9999);
+            //通过socket获取字符流
+            BufferedWriter bufferedWriter =new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
+            //通过标准输入流获取字符流
+            BufferedReader bufferedReader =new BufferedReader(new InputStreamReader(System.in,"UTF-8"));
+          while (true){
+String str = bufferedReader.readLine();
+              bufferedWriter.write(str);
+              bufferedWriter.write("\n");
+              bufferedWriter.flush();
+          }
+```
+
+
+
+那么如果有多个客户端向这个服务端发送数据，那么因为accept（）还有read（）都会阻塞，所以当服务端在接受一个客户端的数据时，会阻塞其他客户端的通信，这时我们可以在服务端中针对读取输入流部分功能，使用多线程。但是一旦连接的客户端数量达到一定数量，服务端就接受不了了。这时可以使用线程池，复用这些线程。
+
+改良以后的服务端代码
+
+```java
+				// 初始化服务端socket并且绑定9999端口
+        ServerSocket serverSocket =new ServerSocket(9999);
+        //创建一个线程池
+        ExecutorService executorService = Executors.newFixedThreadPool(100);
+        while (true) {
+//等待客户端的连接
+            Socket socket = serverSocket.accept();
+            Runnable runnable = () -> {
+BufferedReader bufferedReader =null;
+                try {
+bufferedReader =new BufferedReader(new InputStreamReader(socket.getInputStream(), "UTF-8"));
+                    //读取一行数据
+                    String str;
+                    //通过while循环不断读取信息，
+                    while ((str = bufferedReader.readLine()) !=null) {
+											//输出打印
+                        System.out.println("客户端说：" + str);
+                    }
+}catch (IOException e) {
+e.printStackTrace();
+                }
+};
+            executorService.submit(runnable);
+        }
+}
+```
+
+在实际应用中，socket发送的数据不是一行一行的，而是采用 **数据长度+类型+数据的方式**
+
+### socket指定长度发送数据
+
+在实际应用中，网络的数据在TCP/IP协议下的socket都是采用数据流的方式进行发送，那么在发送过程中就要求我们将数据流转出字节进行发送，读取的过程中也是采用字节缓存的方式结束。那么问题就来了，在socket通信时候，我们大多数发送的数据都是不定长的，所有接受方也不知道此次数据发送有多长，因此无法精确地创建一个缓冲区（字节数组）用来接收，在不定长通讯中，通常使用的方式时每次默认读取8*1024长度的字节，若输入流中仍有数据，则再次读取，一直到输入流没有数据为止。但是如果发送数据过大时，发送方会对数据进行分包发送，这种情况下或导致接收方判断错误，误以为数据传输完成，因而接收不全。在这种情况下就会引出一些问题，诸如半包，粘包，分包等问题，为了后续一些例子中好理解，我在这里直接将半包，粘包，分包概念性东西在写一下（引用度娘）
+
+**半包**
+
+接受方没有接受到一个完整的包，只接受了部分。
+
+原因：TCP为提高传输效率，将一个包分配的足够大，导致接受方并不能一次接受完。
+
+影响：长连接和短连接中都会出现
+
+**粘包**
+
+发送方发送的多个包数据到接收方接收时粘成一个包，从接收缓冲区看，后一包数据的头紧接着前一包数据的尾。
+
+分类：一种是粘在一起的包都是完整的数据包，另一种情况是粘在一起的包有不完整的包
+
+出现粘包现象的原因是多方面的:
+
+1)发送方粘包：由TCP协议本身造成的，TCP为提高传输效率，发送方往往要收集到足够多的数据后才发送一包数据。若连续几次发送的数据都很少，通常TCP会根据优化算法把这些数据合成一包后一次发送出去，这样接收方就收到了粘包数据。
+
+2)接收方粘包：接收方用户进程不及时接收数据，从而导致粘包现象。这是因为接收方先把收到的数据放在系统接收缓冲区，用户进程从该缓冲区取数据，若下一包数据到达时前一包数据尚未被用户进程取走，则下一包数据放到系统接收缓冲区时就接到前一包数据之后，而用户进程根据预先设定的缓冲区大小从系统接收缓冲区取数据，这样就一次取到了多包数据。
+
+**分包**
+
+分包（1）：在出现粘包的时候，我们的接收方要进行分包处理；
+
+分包（2）：一个数据包被分成了多次接收；
+
+原因：1. IP分片传输导致的；2.传输过程中丢失部分包导致出现的半包；3.一个包可能被分成了两次传输，在取数据的时候，先取到了一部分（还可能与接收的缓冲区大小有关系）。
+
+影响：粘包和分包在长连接中都会出现
+
+那么如何解决半包和粘包的问题，就涉及一个一个数据发送如何标识结束的问题，通常有以下几种情况
+
+固定长度：每次发送固定长度的数据；
+
+特殊标示：以回车，换行作为特殊标示；获取到指定的标识时，说明包获取完整。
+
+字节长度：包头+包长+包体的协议形式，当服务器端获取到指定的包长时才说明获取完整；
+
+所以大部分情况下，双方使用socket通讯时都会约定一个定长头放在传输数据的最前端，用以标识数据体的长度，通常定长头有整型int，短整型short，字符串Strinng三种形式。
+
+
+
+## 泛型相关
+
+https://www.cnblogs.com/coprince/p/8603492.html
+
+#### 什么是泛型
+
+```
+泛型，就是将类型由原来的具体的类型参数化，类似于方法中的变量参数，此时类型也定义成参数形式，然后在使用/调用时传入具体的类型
+
+泛型的本质是为了参数化类型（在不创建新的类型的情况下，通过泛型指定的不同类型来控制形参具体限制的类型）。也就是说在泛型使用过程中，
+
+操作的数据类型被指定为一个参数，这种参数类型可以用在类、接口和方法中，分别被称为泛型类、泛型接口、泛型方法。
+```
+
+```java
+List arrayList = new ArrayList();
+arrayList.add("aaaa");
+arrayList.add(100);
+
+for(int i = 0; i< arrayList.size();i++){
+    String item = (String)arrayList.get(i);
+    Log.d("泛型测试","item = " + item);
+}
+```
+
+上面的例子会运行的时候会报错，但是编译的时候没问题，因为ArrayList()可以存放任何类型，但是这样不利于写代码，最好在编译的时候就会报错，这样能尽快的修改代码。--------**使用泛型**
+
+可以对第一行进行修改,此时编译器在编译阶段就会报错了。<String>是类型实参，传入到List中对应的形参
+
+```java
+List<String> arrayList = new ArrayList<String>();
+...
+//arrayList.add(100); 在编译阶段，编译器就会报错
+```
+
+#### 特性
+
+泛型只在编译阶段有效。
+
+
+
+```java
+List<String> stringArrayList = new ArrayList<String>();
+List<Integer> integerArrayList = new ArrayList<Integer>();
+
+Class classStringArrayList = stringArrayList.getClass();
+Class classIntegerArrayList = integerArrayList.getClass();
+
+if(classStringArrayList.equals(classIntegerArrayList)){
+    Log.d("泛型测试","类型相同");
+}
+
+
+结果：
+泛型测试: 类型相同
+```
+
+在编译之后程序会采取去泛型化的措施，也就是说Java的泛型只幼崽编译阶段有效。在编译阶段检验了泛型以后，就会将泛型的相关信息擦除。在运行的时候可以看成是相同的类型，也就是说编译过后的class文件是不包含任何泛型信息的。
+
+**对此总结成一句话：泛型类型在逻辑上看以看成是多个不同的类型，实际上都是相同的基本类型**
+
+
+
+#### 泛型的使用方法
+
+泛型有三种使用方法：泛型类、泛型接口、泛型方法
+
+**1.泛型类**
+
+那些容器类都是，如List、Set、Map
+
+```java
+//此处T可以随便写为任意标识，常见的如T、E、K、V等形式的参数常用于表示泛型
+//在实例化泛型类时，必须指定T的具体类型
+public class Generic<T>{ 
+    //key这个成员变量的类型为T,T的类型由外部指定  
+    private T key;
+
+    public Generic(T key) { //泛型构造方法形参key的类型也为T，T的类型由外部指定
+        this.key = key;
+    }
+
+    public T getKey(){ //泛型方法getKey的返回值类型为T，T的类型由外部指定
+        return key;
+    }
+}
+
+//泛型的类型参数只能是类类型（包括自定义类），不能是简单类型（基本类型如int、double）
+//传入的实参类型需与泛型的类型参数类型相同，即为Integer.
+Generic<Integer> genericInteger = new Generic<Integer>(123456);
+
+//传入的实参类型需与泛型的类型参数类型相同，即为String.
+Generic<String> genericString = new Generic<String>("key_vlaue");
+Log.d("泛型测试","key is " + genericInteger.getKey());
+Log.d("泛型测试","key is " + genericString.getKey());
+```
+
+定义一个泛型类不一定要传入**泛型类型实参**，如果传入了泛型实参，此时会根据传入的泛型实参做限制，如果不传入的话，在泛型类中使用泛型的方法活成员变量可以为任何类型
+
+**2.泛型接口**
+
+泛型接口与泛型类的定义及使用基本相同
+
+当实现泛型接口的类，未传入泛型实参时：
+
+```java
+/**
+ * 未传入泛型实参时，与泛型类的定义相同，在声明类的时候，需将泛型的声明也一起加到类中
+ * 即：class FruitGenerator<T> implements Generator<T>{
+ * 如果不声明泛型，如：class FruitGenerator implements Generator<T>，编译器会报错："Unknown class"
+ */
+class FruitGenerator<T> implements Generator<T>{
+    @Override
+    public T next() {
+        return null;
+    }
+}
+```
+
+当实现泛型接口的类，传入泛型实参时：
+
+```java
+/**
+ * 传入泛型实参时：
+ * 定义一个生产器实现这个接口,虽然我们只创建了一个泛型接口Generator<T>
+ * 但是我们可以为T传入无数个实参，形成无数种类型的Generator接口。
+ * 在实现类实现泛型接口时，如已将泛型类型传入实参类型，则所有使用泛型的地方都要替换成传入的实参类型
+ * 即：Generator<T>，public T next();中的的T都要替换成传入的String类型。
+ */
+public class FruitGenerator implements Generator<String> {
+
+    private String[] fruits = new String[]{"Apple", "Banana", "Pear"};
+
+    @Override
+    public String next() {
+        Random rand = new Random();
+        return fruits[rand.nextInt(3)];
+    }
+}
+```
+
+**3.泛型通配符**
+
+如果一个方法传入的是泛型实参，那么可能创建实例是这个实参的子类，也不能调用这个方法。这时可以讲实参改成“？”
+
+```java
+List<Integer> ex_int= new ArrayList<Integer>();    
+List<Number> ex_num = ex_int; //非法的  
+```
+
+虽然Integer是Number的子类，但是List<Integer>不是List<Number>的子类。如果第二行是正确的，那么ex_num中添加double类型的对象以后，在从List取出来时就出现了问题，不知道该转型为Integer还是Double。这时候可以使用通配符
+
+```java
+public static void main(String[] args) {  
+    FX<Number> ex_num = new FX<Number>(100);  
+    FX<Integer> ex_int = new FX<Integer>(200);  
+    getData(ex_num);  
+    getData(ex_int);//编译错误  
+}  
+  
+public static void getData(FX<Number> temp) { //此行若把Number换为“？”编译通过  
+    //do something...  
+}  
+      
+public static class FX<T> {  
+    private T ob;   
+    public FX(T ob) {  
+        this.ob = ob;  
+    }  
+}  
+```
+
+
+
+**4.泛型方法**
+
+```java
+/**
+ * 泛型方法的基本介绍
+ * @param tClass 传入的泛型实参
+ * @return T 返回值为T类型
+ * 说明：
+ *     1）public 与 返回值中间<T>非常重要，可以理解为声明此方法为泛型方法。
+ *     2）只有声明了<T>的方法才是泛型方法，泛型类中的使用了泛型的成员方法并不是泛型方法。
+ *     3）<T>表明该方法将使用泛型类型T，此时才可以在方法中使用泛型类型T。
+ *     4）与泛型类的定义一样，此处T可以随便写为任意标识，常见的如T、E、K、V等形式的参数常用于表示泛型。
+ */
+public <T> T genericMethod(Class<T> tClass)throws InstantiationException ,
+  IllegalAccessException{
+        T instance = tClass.newInstance();
+        return instance;
+}
+
+		//这不是一个泛型方法，这就是一个普通的方法，只是使用了Generic<Number>这个泛型类做形参而已。
+    public void showKeyValue1(Generic<Number> obj){
+        Log.d("泛型测试","key value is " + obj.getKey());
+    }
+
+    //这也不是一个泛型方法，这也是一个普通的方法，只不过使用了泛型通配符?
+    //同时这也印证了泛型通配符章节所描述的，?是一种类型实参，可以看做为Number等所有类的父类
+    public void showKeyValue2(Generic<?> obj){
+        Log.d("泛型测试","key value is " + obj.getKey());
+    }
+```
+
+静态方法有一种需要注意，那就是在类中的静态方法使用泛型：静态方法无法访问类上定义的泛型；如果静态方法操作的引用数据类型不确定的时候，必须要将泛型定义在方法上。
+
+即：如果静态方法要使用泛型的话，必须将静态方法也定义成泛型方法 。
+
+```java
+public class StaticGenerator<T> {
+    ....
+    ....
+    /**
+     * 如果在类中定义使用泛型的静态方法，需要添加额外的泛型声明（将这个方法定义成泛型方法）
+     * 即使静态方法要使用泛型类中已经声明过的泛型也不可以。
+     * 如：public static void show(T t){..},此时编译器会提示错误信息：
+          "StaticGenerator cannot be refrenced from static context"
+     */
+    public static <T> void show(T t){
+
+    }
+}
+```
+
+**5.泛型的上下边界**
+
+在使用泛型的时候，我们还可以为传入的泛型类型实参进行上下边界的限制，如：类型实参只准传入某种类型的父类或某种类型的子类。
+
+为泛型添加上边界，即传入的类型实参必须是指定类型的子类型
+
+```java
+public void showKeyValue1(Generic<? extends Number> obj){
+    Log.d("泛型测试","key value is " + obj.getKey());
+}
+```
+
+1,`<? extends Parent>` 指定了泛型类型的上届
+2,`<? super Child>` 指定了泛型类型的下届
+
+泛型方法的例子：
+
+```java
+//在泛型方法中添加上下边界限制的时候，必须在权限声明与返回值之间的<T>上添加上下边界，即在泛型声明的时候添加
+//public <T> T showKeyName(Generic<T extends Number> container)，编译器会报错："Unexpected bound"
+public <T extends Number> T showKeyName(Generic<T> container){
+    System.out.println("container key :" + container.getKey());
+    T test = container.getKey();
+    return test;
+}
+```
+
+
+
+**6.泛型中的约束和局限性**
+
+- 不能实例化泛型类
+- 静态变量或方法不能引用泛型类型变量，但静态泛型方法是可以的
+- 基本数据类型不能作为泛型类型
+- 不能使用instanceof关键字货==判断泛型类的类型
+- 泛型类不能继承Exception或者Throwable
+- 泛型数组可以申明但是无法实例化
+
+```java
+List<String>[] lsa = new List<String>[10]; // Not really allowed.    
+Object o = lsa;    
+Object[] oa = (Object[]) o;    
+List<Integer> li = new ArrayList<Integer>();    
+li.add(new Integer(3));    
+oa[1] = li; // Unsound, but passes run time store check    
+String s = lsa[1].get(0); // Run-time error: ClassCastException.    
+```
+
+这种情况下，由于JVM泛型的擦除机制，在运行时JVM是不知道泛型信息的，所以可以给oa[1]赋上一个ArrayList<Integer>而不会出现异常，但是在取出数据的时候却要做一次类型转换，所以就会出现ClassCastException，如果可以进行泛型数组的声明，上面说的这种情况在编译期将不会出现任何的警告和错误，只有在运行时才会出错。
+
+下面采用通配符的方式是被允许的：
+
+```java
+List<?>[] lsa = new List<?>[10]; // OK, array of unbounded wildcard type.    
+Object o = lsa;    
+Object[] oa = (Object[]) o;    
+List<Integer> li = new ArrayList<Integer>();    
+li.add(new Integer(3));    
+oa[1] = li; // Correct.    
+Integer i = (Integer) lsa[1].get(0); // OK  
+```
+
+
+
+#### 泛型的类型擦除
+
+https://www.cnblogs.com/wuqinglong/p/9456193.html
+
+Java的泛型是伪泛型，这是因为Java在编译期间，所有的泛型信息都会被擦掉，正确理解泛型概念的首要前提是理解类型擦除。Java的泛型基本上都是在编译器这个层次上实现的，在生成的字节码中是不包含泛型中的类型信息的，使用泛型的时候加上类型参数，在编译器编译的时候会去掉，这个过程成为类型擦除。
+
+```java
+public class Test {
+
+    public static void main(String[] args) throws Exception {
+
+        ArrayList<Integer> list = new ArrayList<Integer>();
+
+        list.add(1);  //这样调用 add 方法只能存储整形，因为泛型类型的实例为 Integer
+
+        list.getClass().getMethod("add", Object.class).invoke(list, "asd");
+
+        for (int i = 0; i < list.size(); i++) {
+            System.out.println(list.get(i));
+        }
+    }
+
+}
+```
+
+上面的例子没有错误，通过反射调用add方法时可以存储字符串，说明Integer泛型在编译之后被擦除掉了。只保留原始类型。
+
+**原始类型**：擦去泛型信息，最后在字节码中的类型变量的真正类型，无论何时定义一个泛型，都会用限定类型（无限定类型用Object）替换
+
+```java
+public class Pair<T extends Comparable> {}
+```
+
+原始类型就是Comparable
+
+#### 类型擦除引起的问题
+
+**1.先检查，在编译**
+
+类型变量会在编译的时候擦除掉，那为什么以下代码还会报错,不是都是Object类型了吗？
+
+**Java编译器是通过先检查代码中的泛型类型，在进行类型擦除，在进行编译。**
+
+```java
+public static  void main(String[] args) {  
+
+    ArrayList<String> list = new ArrayList<String>();  
+    list.add("123");  
+    list.add(123);//编译错误  
+}
+```
+
+
+
+**相关面试题**
+
+https://cloud.tencent.com/developer/article/1033693
+
+
+
+
+
+## 一致性哈希
+
+https://cloud.tencent.com/developer/article/1491613
+
+
 
