@@ -48,25 +48,61 @@ System.out.println(m == n); // true
 
 ```
 
-## 字符串常量池
+## Java常量池
 
-String Pool 保存着所有字符串字面量（literal strings），这些字面量在编译时期就确定。不仅如此，还可以使用 String 的 intern() 方法在运行过程将字符串添加到 String Pool 中。
+什么是常量：
 
-当一个字符串调用 intern() 方法时，如果 String Pool 中已经存在一个字符串和该字符串值相等（使用 equals() 方法进行确定），那么就会返回 String Pool 中字符串的引用；否则，就会在 String Pool 中添加一个新的字符串，并返回这个新字符串的引用。
+- final修饰的成员变量是常量，值一旦给定就无法修改
+- final修饰的变量有三种：静态变量、实例变量和局部变量
+
+Java内存分配中，有三种常量池：字符串常量池、class文件常量池、运行时常量池
+
+#### 字符串常量池
+
+String Pool 在Java 7之前被放在运行时常量池，但是之后被移到了堆。因为永久代的空间有限，在大量使用字符串的场景下会导致OOM错误
+
+实现String Pool 功能的是一个StringTable类，它是一个Hash表，默认大小1009；**存储的是字符串的引用（不是字符串本身）**。
+
+StringTable本质就是一个HashSet<String>，如果String Pool中的String很多，但是Hash表设置的太小，容易造成Hash冲突，导致链表过长，那么使用String/intetn()方法是会去链表中一个个找，效率低下。
+
+所以可以通过参数指定StringTable的大小
 
 ```java
-//下面两个是字面量形式
-String s5 = "bbb";
-String s6 = "bbb";
-System.out.println(s5 == s6);  // true
- 
-String s1 = new String("aaa");
-String s2 = new String("aaa");
-System.out.println(s1 == s2);           // false
-
+-XX:StringTableSize=66666
 ```
 
-String Pool 在Java 7之前被放在运行时常量池，但是之后被移到了堆。因为永久代的空间有限，在大量食用字符串的场景下会导致OOM错误
+
+
+```java
+String s1 = "abc";  // 1
+String s2 = "abc";	// 2
+String s3 = "xxx";	// 3
+```
+
+![img](https://pic2.zhimg.com/80/v2-5d7f1fddd6684c628ce87a6145ab3dcc_720w.jpg)
+
+- 执行第一行，解析时在字符串常量池中没有发现"abc"的引用，所以去堆里创建一个"abc"对象，然后把这个对象的引用存在字符串常量池中，最后把这个引用返回给s1
+- 执行第二行，解析时发现字符串常量池中已经有"abc"的引用，所以直接返回引用给s2
+- 执行第三行，分析过程和第一行一样
+
+还可以使用 String 的 intern() 方法在运行过程将字符串引用添加到 String Pool 中。
+
+当一个字符串调用 intern() 方法时，如果 String Pool 中已经存在一个字符串和该字符串值相等（使用 equals() 方法进行确定），那么就会返回 String Pool 中字符串的引用；否则，就会在 String Pool 中添加该字符串的引用，并返回这个引用。
+
+```java
+String s1 = "ab";//#1
+String s2 = new String(s1+"d");//#2
+s2.intern();//#3
+String s4 = "xxx";//#4
+String s3 = "abd";//#5
+System.out.println(s2 == s3);//true
+```
+
+![img](https://pic1.zhimg.com/80/v2-038133505bc57cac2950a49f34877f3d_720w.jpg)
+
+- 第二行，内部创建一个StringBuilder对象执行append()操作，最后执行toString（）方法创建一个新的String对象"abd"，然后直接返回给s2。**注意，此时并没有把引用放入字符串常量池中**
+- 第三行，intern()首先会去字符串常量池中查找是否有"abd"的引用，发现没有，就把堆里"abd"对象的引用存入到字符串常量池中，并返回这个引用。
+- 执行第五行时，因为常量池中已经有这个"abd"对象的引用，所以直接返回给s3
 
 **new String("aaa")**
 
@@ -75,7 +111,42 @@ String Pool 在Java 7之前被放在运行时常量池，但是之后被移到�
 - 首先编译器，会在String Pool中创建一个字符串对象，
 - 使用new 在堆中创建一个字符串对象
 
+**String str1=new String("A"+"B")；会创建多少个对象**
 
+"A"+"B"在编译的时候会被JVM直接认为是"AB"，所以实际上就是判断new String("AB")会创建多少对象，和上面一样。
+
+**String str2=new String("ABC")+"ABC"；会创建多少个对象**
+
+字符串常量池中："ABC"
+
+堆中：new String("ABC")一个，以及"ABCABC"
+
+```java
+String str1 = "abc";
+String str2 = new String(str1);
+System.out.println(str1==str2);
+System.out.println(str1.hashCode());
+System.out.println(str2.hashCode());
+```
+
+输出结果
+false
+96354
+96354
+
+str1和str2的hashcode还有指向的内部字符串数组都相同，但是两个不是同一个对象
+
+#### class文件常量池
+
+class 文件中除了包含类的版本、字段、方法、接口等描述信息外，还有一项信息就是常量池(constant pool table)，用于存放编译器生成的`各种字面量(Literal)和符号引用(Symbolic References)`。
+
+
+
+#### 运行时常量池
+
+方法区的一部分，当Java文件被编译成class文件之后，会生成class文件常量池。
+
+JVM执行某个类的时候，需要经过加载、连接、初始化过程。当class文件加载到内存后，JVM会将class文件常量池中的内容存放到运行时常量池中。class常量池中存的是字面量和符号引用，也就是说他们存储的并不是对象实例，而是对象的符号引用。那么经过连接（验证，准备，解析）里面的解析后，会将符号引用替换为直接引用
 
 ### Java 参数是传值 不是传引用
 
@@ -95,7 +166,7 @@ HashMap 底层是 hash 数组和单向链表实现，数组中的每个元素都
 
 ①、调用 hash(K) 方法计算 K 的 hash 值，然后结合数组长度，计算得数组下标；
 
-②、调整数组大小（当容器中的元素个数大于 capacity * loadfactor 时，容器会进行扩容resize 为 2n）；
+②、调整数组大小（当容器中的元素个数大于 capacity * loadfactor 时，容器会进行扩容resize 为 2*capacity）；
 
 ③、
 i.如果 K 的 hash 值在 HashMap 中不存在，则执行插入，若存在，则发生碰撞；
@@ -103,6 +174,10 @@ i.如果 K 的 hash 值在 HashMap 中不存在，则执行插入，若存在，
 ii.如果 K 的 hash 值在 HashMap 中存在，且它们两者 equals 返回 true，则更新键值对；
 
 iii. 如果 K 的 hash 值在 HashMap 中存在，且它们两者 equals 返回 false，则插入链表的尾部（尾插法）或者红黑树中（树的添加方式）。（JDK 1.7 之前使用头插法、JDK 1.8 使用尾插法）（注意：当碰撞导致链表大于 TREEIFY_THRESHOLD = 8 时，就把链表转换成红黑树）
+
+**为什么采用尾插法**
+
+因为头插法在resize的时候可能会产生环形链表
 
 获取对象时，将 K 传给 get() 方法：①、调用 hash(K) 方法（计算 K 的 hash 值）从而获取该键值所在链表的数组下标；②、顺序遍历链表，equals()方法查找相同 Node 链表中 K 值对应的 V 值。
 
@@ -141,7 +216,7 @@ static final int hash(Object key) {
 
 **这里可能会有疑问，为什么要将hashcode右移16位？**
 
-因为在后续取模运算时，使用了以下代码，可以通过位运算，快速的获取低位的1，也就是余数。所以说真真参与运算的，往往是低位的数，很可能会产生碰撞，所以通过将高16位的树右移在异或，可以有效的打乱低16位，避免碰撞。
+因为在后续取模运算时，使用了以下代码，可以通过位运算，快速的获取低位的1，也就是余数。所以说真正参与运算的，往往是低位的数，很可能会产生碰撞，所以通过将高16位的树右移在异或，可以有效的打乱低16位，避免碰撞。
 
 ```java
 h & (length-1)
@@ -383,7 +458,7 @@ modeCount用来记录ArrayList结构发生变化的次数，在进行序列化�
 声明数据为常量，可以是编译时常量，也可以是在运行时被初始化后不能被改变的常量。
 
 - 对于基本类型，final 使数值不变；
-- 对于引用类型，final 使引用不变，也就不能引用其它对象，但是被引用的对象本身是可以修改的。
+- 对于引用类型，final 使引用不变，也就是不能引用其它对象，但是被引用的对象本身是可以修改的。
 
 ```java
 final int x = 1;
@@ -468,7 +543,27 @@ Java 中有三个访问权限修饰符：private、protected 以及 public，如
 
 如果子类的方法重写了父类的方法，那么子类中该方法的访问级别不允许低于父类的访问级别。这是为了确保可以使用父类实例的地方都可以使用子类实例去代替，也就是确保满足里氏替换原则。
 
-字段决不能是公有的，因为这么做的话就失去了对这个字段修改行为的控制，客户端可以对其随意修改。例如下面的例子中，AccessExample 拥有 id 公有字段，如果在某个时刻，我们想要使用 int 存储 id 字段，那么就需要修改所有的客户端代码。
+字段绝不能是公有的，因为这么做的话就失去了对这个字段修改行为的控制，客户端可以对其随意修改。例如下面的例子中，AccessExample 拥有 id 公有字段，如果在某个时刻，我们想要使用 int 存储 id 字段，那么就需要修改所有的客户端代码。
+
+![在这里插入图片描述](https://img-blog.csdnimg.cn/20190212171052701.png)
+
+- 类中不加任何修饰符就是default，默认对于同一个包中的其他类是公开的。
+- protected修饰的类、方法、属性对于同一个包中的类，或者不同包中的子类相当于公开的。
+
+讲述的时候建议有逻辑性一层一层的来，
+
+```java
+    1、private，私有的，被private修饰的类、方法、属性、只能被本类的对象所访问。----- 我什么都不跟别人分享。只有自己知道。
+
+    2、default，默认的，在这种模式下，只能在同一个包内访问。----我的东西可以和跟我一块住的那个人分享。
+
+    3、protected，受保护的，被protected修饰的类、方法、属性、只能被本类、本包、不同包的子类所访问。-----我的东西我可以和跟我一块住的那个人分享。另外也可以跟不在家的儿子分享消息，打电话
+
+    4、public，公共的，被public修饰的类、方法、属性、可以跨类和跨包访问。----- 我的东西大家任何人都可以分享。
+
+```
+
+**注意：Java中外部类的修饰符之能是default或public，类的成员或内部类可以是以上四种**
 
 ### 抽象类和接口
 
@@ -479,7 +574,8 @@ Java 中有三个访问权限修饰符：private、protected 以及 public，如
 - 抽象类和普通类最大的区别是，抽象类不能被实例化，只能被继承。但是抽象类可以有构造方法，供子类创建对象，初始化父类使用。
 
 - 子类如果实现抽象类，就必须实现父类所有的抽象方法
-- 
+
+  
 
 **接口**
 
@@ -577,7 +673,7 @@ https://blog.csdn.net/dufufd/article/details/80537638
 
 **有了这个Class对象，如何获取类的对象**
 
-可以通过Class对象来调用newInstance()方法，这种形式默认调用的事无餐构造来返回一个对象。
+可以通过Class对象来调用newInstance()方法，这种形式默认调用的是无参构造来返回一个对象。
 
 
 
@@ -724,7 +820,7 @@ finish main
 
 
 
- **其实对于任意一个Class对象，都需要由它的类加载器和这个类本身一同确定其在Java虚拟机中的唯一性，也就是说，即使两个Class对象来源于同一个Class文件，只要加载它们的类加载器不同，那这两个Class对象就必定不相等。**这里的“相等”包括了代表类的Class对象的equals（）、isAssignableFrom（）、isInstance（）等方法的返回结果，也包括了使用instanceof关键字对对象所属关系的判定结果。所以在java虚拟机中使用**双亲委派模型**来组织类加载器之间的关系，来保证Class对象的唯一性。
+ 	**其实对于任意一个Class对象，都需要由它的类加载器和这个类本身一同确定其在Java虚拟机中的唯一性，也就是说，即使两个Class对象来源于同一个Class文件，只要加载它们的类加载器不同，那这两个Class对象就必定不相等。**这里的“相等”包括了代表类的Class对象的equals（）、isAssignableFrom（）、isInstance（）等方法的返回结果，也包括了使用instanceof关键字对对象所属关系的判定结果。所以在java虚拟机中使用**双亲委派模型**来组织类加载器之间的关系，来保证Class对象的唯一性。
 
 
 
@@ -757,7 +853,7 @@ https://blog.csdn.net/cyl101816/article/details/67640843
 
 1）Class.forName("类名")
 
-​	使用Class.forName("类名")先获取这个类的Class 对象，然后调用Class内部的newInstance()方法，默认调用无餐构造函数。
+​	使用Class.forName("类名")先获取这个类的Class 对象，然后调用Class内部的newInstance()方法，默认调用无参构造函数。**必须是public类型的，如果是private会创建失败。**
 
 2）Constructor类的newInstance方法
 
@@ -1115,6 +1211,14 @@ e.printStackTrace();
 
 https://www.cnblogs.com/coprince/p/8603492.html
 
+**为什么要使用泛型**
+
+Java集合不会知道我们需要用它来保存什么类型的对象，所以他们把集合设计成能保存任何类型的对象，只要就具有很好的通用性。但这样做也带来两个问题：
+
+- 集合对元素类型没有任何限制，这样可能引发一些问题：例如想创建一个只能保存Sting对象的集合，但程序也可以轻易地将int对象“丢”进去，所以可能引发异常。
+
+- 由于把对象“丢进”集合时，集合丢失了对象的状态信息，集合只知道它盛装的是Object，因此取出集合元素后通常还需要进行强制类型转换。这种强制类型转换既会增加编程的复杂度、也可能引发ClassCastException。
+
 #### 什么是泛型
 
 ```
@@ -1168,7 +1272,7 @@ if(classStringArrayList.equals(classIntegerArrayList)){
 泛型测试: 类型相同
 ```
 
-在编译之后程序会采取去泛型化的措施，也就是说Java的泛型只幼崽编译阶段有效。在编译阶段检验了泛型以后，就会将泛型的相关信息擦除。在运行的时候可以看成是相同的类型，也就是说编译过后的class文件是不包含任何泛型信息的。
+在编译之后程序会采取去泛型化的措施，也就是说Java的泛型只在编译阶段有效。在编译阶段检验了泛型以后，就会将泛型的相关信息擦除。在运行的时候可以看成是相同的类型，也就是说编译过后的class文件是不包含任何泛型信息的。
 
 **对此总结成一句话：泛型类型在逻辑上看以看成是多个不同的类型，实际上都是相同的基本类型**
 
@@ -1466,5 +1570,268 @@ https://cloud.tencent.com/developer/article/1033693
 
 https://cloud.tencent.com/developer/article/1491613
 
+https://blog.csdn.net/kefengwang/article/details/81628977
 
 
+
+**虚拟节点**
+
+节点数越少，越容易出现节点在哈希环上的分布不均匀，导致各节点映射的对象数量严重不均衡(数据倾斜)；相反，节点数越多越密集，数据在哈希环上的分布就越均匀。
+但实际部署的物理节点有限，我们可以用有限的物理节点，虚拟出足够多的虚拟节点(Virtual Node)，最终达到数据在哈希环上均匀分布的效果：
+如下图，实际只部署了2个节点 Node A/B，
+每个节点都复制成3倍，结果看上去是部署了6个节点。
+可以想象，当复制倍数为 2^32 时，就达到绝对的均匀，通常可取复制倍数为32或更高。
+虚拟节点哈希值的计算方法调整为：对“节点的IP(或机器名)+虚拟节点的序号(1~N)”作哈希。
+
+手撕 一致性哈希（带虚拟节点）
+
+```java
+/**
+ * @author: https://kefeng.wang
+ * @date: 2018-08-10 11:08
+ **/
+public class ConsistentHashing {
+    // 物理节点
+    private Set<String> physicalNodes = new TreeSet<String>() {
+        {
+            add("192.168.1.101");
+            add("192.168.1.102");
+            add("192.168.1.103");
+            add("192.168.1.104");
+        }
+    };
+
+    //虚拟节点
+    private final int VIRTUAL_COPIES = 1048576; // 物理节点至虚拟节点的复制倍数
+    private TreeMap<Long, String> virtualNodes = new TreeMap<>(); // 哈希值 => 物理节点
+
+    // 32位的 Fowler-Noll-Vo 哈希算法
+    // https://en.wikipedia.org/wiki/Fowler–Noll–Vo_hash_function
+    private static Long FNVHash(String key) {
+        final int p = 16777619;
+        Long hash = 2166136261L;
+        for (int idx = 0, num = key.length(); idx < num; ++idx) {
+            hash = (hash ^ key.charAt(idx)) * p;
+        }
+        hash += hash << 13;
+        hash ^= hash >> 7;
+        hash += hash << 3;
+        hash ^= hash >> 17;
+        hash += hash << 5;
+
+        if (hash < 0) {
+            hash = Math.abs(hash);
+        }
+        return hash;
+    }
+
+    // 根据物理节点，构建虚拟节点映射表
+    public ConsistentHashing() {
+        for (String nodeIp : physicalNodes) {
+            addPhysicalNode(nodeIp);
+        }
+    }
+
+    // 添加物理节点
+    public void addPhysicalNode(String nodeIp) {
+        for (int idx = 0; idx < VIRTUAL_COPIES; ++idx) {
+            long hash = FNVHash(nodeIp + "#" + idx);
+            virtualNodes.put(hash, nodeIp);
+        }
+    }
+
+    // 删除物理节点
+    public void removePhysicalNode(String nodeIp) {
+        for (int idx = 0; idx < VIRTUAL_COPIES; ++idx) {
+            long hash = FNVHash(nodeIp + "#" + idx);
+            virtualNodes.remove(hash);
+        }
+    }
+
+    // 查找对象映射的节点
+    public String getObjectNode(String object) {
+        long hash = FNVHash(object);
+        SortedMap<Long, String> tailMap = virtualNodes.tailMap(hash); // 所有大于 hash 的节点
+        Long key = tailMap.isEmpty() ? virtualNodes.firstKey() : tailMap.firstKey();
+        return virtualNodes.get(key);
+    }
+
+    // 统计对象与节点的映射关系
+    public void dumpObjectNodeMap(String label, int objectMin, int objectMax) {
+        // 统计
+        Map<String, Integer> objectNodeMap = new TreeMap<>(); // IP => COUNT
+        for (int object = objectMin; object <= objectMax; ++object) {
+            String nodeIp = getObjectNode(Integer.toString(object));
+            Integer count = objectNodeMap.get(nodeIp);
+            objectNodeMap.put(nodeIp, (count == null ? 0 : count + 1));
+        }
+
+        // 打印
+        double totalCount = objectMax - objectMin + 1;
+        System.out.println("======== " + label + " ========");
+        for (Map.Entry<String, Integer> entry : objectNodeMap.entrySet()) {
+            long percent = (int) (100 * entry.getValue() / totalCount);
+            System.out.println("IP=" + entry.getKey() + ": RATE=" + percent + "%");
+        }
+    }
+
+    public static void main(String[] args) {
+        ConsistentHashing ch = new ConsistentHashing();
+
+        // 初始情况
+        ch.dumpObjectNodeMap("初始情况", 0, 65536);
+
+        // 删除物理节点
+        ch.removePhysicalNode("192.168.1.103");
+        ch.dumpObjectNodeMap("删除物理节点", 0, 65536);
+
+        // 添加物理节点
+        ch.addPhysicalNode("192.168.1.108");
+        ch.dumpObjectNodeMap("添加物理节点", 0, 65536);
+    }
+}
+```
+
+## Java 8的一些新特性
+
+https://www.cnblogs.com/xingzc/p/6002873.html
+
+Lambda表达式
+
+Javascript 脚本引擎
+
+## String的最大长度
+
+String内部使用一个字符数组来维护字符序列的
+
+```java
+private final char value[];
+```
+
+所以String的最大长度，取决于value数组的最大长度，可以看一下String类中的length()源码:
+
+```java
+public int length() {
+    return value.length;
+}
+```
+
+可以发现，返回类型是int，所以最大长度理论上是2^31-1。但是实际申请这么长的数组是会产生OOM错误（内存溢出），因为系统无法分配这么大的连续内存，一个char类型占2字节，2147483647 个 char 类型就是 4294967294 字节，这接近于 4GB 大小，想要申请这么一大块连续的内存空间，失败也就不足为奇了。
+
+## byte、 int、char、long、float、double各占多少字节数？
+
+| 类型    | 字符数    |
+| ------- | --------- |
+| byte    | 1字节     |
+| char    | 2字节     |
+| short   | 2字节     |
+| int     | 4字节     |
+| float   | 4字节     |
+| long    | 8字节     |
+| double  | 8字节     |
+| boolean | 至少1字节 |
+
+int的取值范围 -2^31~2^31-1 (-2147483648 ~2147483647)，第一位是符号位所以这里只取31位。
+
+## String，StringBuilder和StringBuffer的区别
+
+https://blog.csdn.net/qushaming/article/details/82971901
+
+速度StringBuilder>StringBuffer>String（如果仅仅是字符串字面量的拼接则String最快如String a="abc"+"bcd"+"efg"）
+
+线程安全 StringBuffer，String
+
+线程不安全 StringBuilder
+
+StringBuffer线程安全是因为它大部分方法都是由synchronized关键字修饰。
+
+## equals()/hashCode()
+
+#### equals()方法
+
+Object类中的equals()方法
+
+```java
+public boolean equals(Object obj) {  
+    return (this == obj);  
+}  
+```
+
+表示两个对象的指向的地址（引用）是否相同。但是String、Math、Integer、Double都重写了equals()方法，实现方式都类似，但是都是判断里面的内容是否相同（不是地址判断）。
+
+- 检查是否为同一个对象的引用，如果是直接返回 true；
+- 检查是否是同一个类型，如果不是，直接返回 false；
+- 将 Object 对象进行转型；
+- 判断每个关键域是否相等。
+
+**equals与==的比较**
+
+1. 对于基本类型(int,double,float等)==进行的是值的判断，没有equals()方法。
+2. 对于引用类型，==判断两个变量是否引用同一个变量（地址判断），equals()判断引用的对象内容是否相同
+
+相关性质如下：
+
+- **自反性**（reflexive）。对于任意不为`null`的引用值x，`x.equals(x)`一定是`true`。
+- **对称性**（symmetric）。对于任意不为`null`的引用值`x`和`y`，当且仅当`x.equals(y)`是`true`时，`y.equals(x)`也是`true`。
+- **传递性**（transitive）。对于任意不为`null`的引用值`x`、`y`和`z`，如果`x.equals(y)`是`true`，同时`y.equals(z)`是`true`，那么`x.equals(z)`一定是`true`。
+- **一致性**（consistent）。对于任意不为`null`的引用值`x`和`y`，如果用于equals比较的对象信息没有被修改的话，多次调用时`x.equals(y)`要么一致地返回`true`要么一致地返回`false`。
+- 对于任意不为`null`的引用值`x`，`x.equals(null)`返回`false`。
+
+
+
+#### hashCode()方法
+
+Object中的hashCode（）方法直接返回对象的地址。
+
+hashCode()返回的是哈希值，用equals()判断两个对象是否等价。**等价的对象hash值一定相等，但是hash值相同的两个对象，不一定等价，因为hash值的计算可能存在随机性.**
+
+所以当equals方法被重写时，hashCode也要被重写，保证等价的两个对象的哈希值也相等。
+
+**那么为什么要引入hashCode呢？**
+
+因为Java的集合类中有Set，里面存储的都是无序的，不重复的元素。如何判断元素是否重复呢，用equals()当然可以，但是如果这个集合很大，已经存了10000个元素，这时第100001个元素进来，要和前面每个元素进行equals判断，效率太低了。这时候可以使用hashCode，就是依据特定的算法指定到一个地址上。这样如果一个元素进来，先计算哈希值，判断该地址上有没有元素，如果没有的话，表示没有重复的元素，直接插入；如果有元素，在进行equals判断。
+
+**相同的对象为什么必须要有相同的hashCode**
+
+如果两个对象相同，但是hashCode不一样的话，那判断的时候会因为哈希值不同，认为没有重复的元素，就插入进去了，显然这是不允许的。
+
+**两个对象hashCode相同，但是并不相同**
+
+这就是存在哈希冲突的情况。
+
+## 深拷贝和浅拷贝
+
+clone()是Object的一个**protected方法**，这就表示，如果子类不去重写这个clone方法的话，其他类是不能调用这个类的clone()。原因请看protected访问权限。
+
+```java
+public class CloneExample {
+    private int a;
+    private int b;
+
+    @Override
+    public CloneExample clone() throws CloneNotSupportedException {
+        return (CloneExample)super.clone();
+    }
+}
+
+```
+
+```java
+CloneExample e1 = new CloneExample();
+try {
+    CloneExample e2 = e1.clone();
+} catch (CloneNotSupportedException e) {
+    e.printStackTrace();
+}
+
+```
+
+因为CloneExample类没有实现Cloneable接口，所以会报CloneNotSupportedException异常。
+
+**注意：clone并不是Cloneable接口的方法，是object的protected方法。Cloneable接口只是规定，如果一个类没有实现这个接口调用clone()方法，会抛出CloneNotSupportedException异常**
+
+浅拷贝：object的clone方法拷贝的是同一个引用，堆中并没有多出一个对象
+
+深拷贝：自己重写clone()方法的时候不调用父类super.clone()，自己新创建一个对象。
+
+最好使用拷贝工厂

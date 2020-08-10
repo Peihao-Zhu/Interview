@@ -596,3 +596,19 @@ https://www.jb51.net/article/134901.htm
   优点：不管怎么删除，表空间的碎片不会严重影响性能。
 
   缺点：单表体积可能过大，超过100G
+
+## MySQL的自增ID用完了怎么办
+
+将id设为int unsigned 最大为2^32-1=4294967295，那么如果初始设置id的auto_increment为这个值，之后在执行插入操作会怎么办呢？
+
+```mysql
+17:28:03    insert into t1 values(null) Error Code: 1062. Duplicate entry '4294967295' for key 'PRIMARY'    0.00054 sec
+```
+
+会报异常，在插入的时候，自增ID还是4294967295，报主键冲突错误。这个数字已经很大，能应付大部分场景，如果经常要执行插入和删除数据的操作，可以采用bigint unsigned。
+
+**如果创建表的时候没有申明主键，会怎么办？**
+
+InnoDB会自动创建一个6字节的隐式主键row_id，所有未定义主键的表都共享这个row_id。该全局ro w_id使用了bigint unsigned类型，但是只给了6字节，如果ro w_id涨到了2^48-1之后在插入数据也会存在主键冲突的风险。
+
+所以为了避免这种隐患，每个表都定义一个主键

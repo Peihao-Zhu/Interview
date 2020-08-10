@@ -102,6 +102,8 @@ Java 虚拟机使用该算法来判断对象是否可被回收，GC Roots 一般
 3. 方法区中类静态属性引用的对象
 4. 方法区中的常量引用的对象
 
+​	
+
 - **方法区的回收**
 
 因为方法区主要存放永久代对象，而永久代对象的回收率比新生代低很多，所以在方法区上进行回收性价比不高。
@@ -546,11 +548,79 @@ public static void main(String[] args){
 - 扩展类加载器（Extension ClassLoader）这个类加载器是由 ExtClassLoader（sun.misc.Launcher$ExtClassLoader）实现的。它负责将 <JAVA_HOME>/lib/ext 或者被 java.ext.dir 系统变量所指定路径中的所有类库加载到内存中，开发者可以直接使用扩展类加载器。
 - 应用程序类加载器（Application ClassLoader）这个类加载器是由 AppClassLoader（sun.misc.Launcher$AppClassLoader）实现的。由于这个类加载器是 ClassLoader 中的 getSystemClassLoader() 方法的返回值，因此一般称为系统类加载器。它负责加载用户类路径（ClassPath）上所指定的类库，开发者可以直接使用这个类加载器，如果应用程序中没有自定义过自己的类加载器，一般情况下这个就是程序中默认的类加载器。
 
-**双亲委派模型**
+### 双亲委派模型
 
 下图展示了类加载器之间的层次关系，称为双亲委派模型（Parents Delegation Model）。该模型要求除了顶层的启动类加载器外，其它的类加载器都要有自己的父类加载器。这里的父子关系一般通过组合关系（Composition）来实现，而不是继承关系（Inheritance）。
 
-<img src="https://cs-notes-1256109796.cos.ap-guangzhou.myqcloud.com/0dd2d40a-5b2b-4d45-b176-e75a4cd4bdbf.png" alt="img" style="zoom:50%;" />
+**Bootstrap ClassLoader（启动类加载器）**
+
+`c++`编写，加载`java`核心库 `java.*`,构造`ExtClassLoader`和`AppClassLoader`。由于引导类加载器涉及到虚拟机本地实现细节，开发者无法直接获取到启动类加载器的引用，所以不允许直接通过引用进行操作
+
+**ExtClassLoader （标准扩展类加载器）**
+
+`java`编写，加载扩展库，如`classpath`中的`jre` ，`javax.*`或者
+ `java.ext.dir` 指定位置中的类，开发者可以直接使用标准扩展类加载器。
+
+**AppClassLoader（应用程序类加载器）**
+
+```
+java`编写，加载程序所在的目录，如`user.dir`所在的位置的`class
+```
+
+**CustomClassLoader（用户自定义类加载器）**
+
+`java`编写,用户自定义的类加载器,可加载指定路径的`class`文件
+
+
+
+<img src="https://cs-notes-1256109796.cos.ap-guangzhou.myqcloud.com/0dd2d40a-5b2b-4d45-b176-e75a4cd4bdbf.png" alt="img" style="zoom:50%;" />‘
+
+类加载的源码解析
+
+```java
+protected Class<?> loadClass(String name, boolean resolve)
+            throws ClassNotFoundException
+    {
+        synchronized (getClassLoadingLock(name)) {
+            // 首先检查这个class是否已经加载过了
+            Class<?> c = findLoadedClass(name);
+            if (c == null) {
+                long t0 = System.nanoTime();
+                try {
+                    // c==null表示没有加载，如果有父类的加载器则让父类加载器加载
+                    if (parent != null) {
+                        c = parent.loadClass(name, false);
+                    } else {
+                        //如果父类的加载器为空 则说明递归到bootStrapClassloader了
+                        //bootStrapClassloader比较特殊无法通过get获取
+                        c = findBootstrapClassOrNull(name);
+                    }
+                } catch (ClassNotFoundException e) {}
+                if (c == null) {
+                    //如果bootstrapClassLoader 仍然没有加载过，则递归回来，尝试自己去加载class
+                    long t1 = System.nanoTime();
+                    c = findClass(name);
+                    sun.misc.PerfCounter.getParentDelegationTime().addTime(t1 - t0);
+                   sun.misc.PerfCounter.getFindClassTime().addElapsedTimeFrom(t1);
+                    sun.misc.PerfCounter.getFindClasses().increment();
+                }
+            }
+            if (resolve) {
+                resolveClass(c);
+            }
+            return c;
+        }
+    }
+```
+
+![img](https://upload-images.jianshu.io/upload_images/7634245-7b7882e1f4ea5d7d.png?imageMogr2/auto-orient/strip|imageView2/2/w/1200/format/webp)
+
+委派的流程如上图所示
+
+**双亲委派机制的作用**
+
+1、防止重复加载同一个`.class`。通过委托去向上面问一问，加载过了，就不用再加载一遍。保证数据安全。
+ 2、保证核心`.class`不能被篡改。通过委托方式，不会去篡改核心`.class`，即使篡改也不会去加载，即使加载也不会是同一个`.class`对象了。不同的加载器加载同一个`.class`也不是同一个`Class`对象。这样保证了`Class`执行安全。
 
 
 
@@ -604,3 +674,8 @@ https://www.cnblogs.com/hollischuang/p/12453988.html
 这片博客也表明，“堆内存是线程共享”并不完全正确，至少在对象的内存分配时，不同线程都只会在各自的TLAB中进行分配，但是各个线程都可以读取（访问）这个对象。
 
 ![img](http://www.hollischuang.com/wp-content/uploads/2020/03/tlab.png)
+
+## JVM还能运行哪些语言
+
+JVM是一个可以运行字节码（.class）的平台，所以Java语言只要经过一次编译以后就可以在不同计算机（安装JVM的计算机）中运行。除了Java以外，，只要能编译产生字节码文件的语言都可以在JVM上运行，如：Kotlin、Scala、Jython、JRuby等
+
