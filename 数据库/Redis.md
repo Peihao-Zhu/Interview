@@ -73,14 +73,14 @@ typedef struct dict{
 
 ​		type和privatedata属性是针对不同类型的键值对，为创建多态字典而设置的：
 
-- type属性是一个只想dictType结构的指针，每个dictType结构保存了一组用于操作特定类型键值对的函数，Redis回味用途不同的字典设置不同的类型特定函数。
+- type属性是一个只想dictType结构的指针，每个dictType结构保存了一组用于操作特定类型键值对的函数，Redis会为用途不同的字典设置不同的类型特定函数。
 - privatedata属性保存了需要传给那些类型特定函数的可选参数。
 
 ​        ht属性和trehashidx属性用于rehash，即当哈希表需要扩展或收缩时使用。ht是一个包含两个项的数组，每项都指向一个dictht结构，这也是Redis的哈希会有1个dict、2个dictht结构的原因。通常情况下，所有的数据都是存放在dict的ht[0]中，ht[1]只在rehash的时候使用。
 
 **rehash**
 
-1）先为ht[1]分配空间，他的大小由eht[0].used（已使用的数量）和执行的操作决定
+1）先为ht[1]分配空间，他的大小由ht[0].used（已使用的数量）和执行的操作决定
 
 - 扩展操作，ht[1]的大小为第一个大于等于ht[0].used*2的2^n
 - 收缩操作，ht[1]的大小为第一个大于等于ht[0].used的2^n
@@ -135,7 +135,7 @@ typedef struct dict{
 
   zskiplistNode结构是右边四个，包括如下属性：
 
-  - 层（level）：L1代表第一层。每个层油两个属性：前进指针和跨度，前进指针指向表尾方向的其他节点，而跨度记录了前进指针指向的节点和当前节点的距离。其中跨度是用来计算排位（rank）：在查找某个节点时，将沿途访问过的所有层的跨度累计起来
+  - 层（level）：L1代表第一层。每个层有两个属性：前进指针和跨度，前进指针指向表尾方向的其他节点，而跨度记录了前进指针指向的节点和当前节点的距离。其中跨度是用来计算排位（rank）：在查找某个节点时，将沿途访问过的所有层的跨度累计起来
   - 后退指针（backward）：指向当前节点的前一个节点
   - 分值（score）：各个节点1.0，2.0都是对应的分值，double类型，节点按照所保存的分值从小到大排列。
   - 成员对象：o1,o2是节点保存的成员对象，指向一个字符串对象（SDS）
@@ -1076,7 +1076,7 @@ C字符串不记录自身长度还容易造成缓冲区溢出。举例：有一�
 
 2. 惰性空间释放
 
-   ​		当SDS的API缩短SDS的长度是，程序不会立即用内存重分配来回收缩短后多出来的字节，而是用free属性来记录，等下一次拼接操作使用。
+   ​		当SDS的API缩短SDS的长度时，程序不会立即用内存重分配来回收缩短后多出来的字节，而是用free属性来记录，等下一次拼接操作使用。
 
    ​		与此同时，SDS也提供了相应的API，可以再有需要的时候真正释放SDS的未使用空间，不用单行惰性空间释放策略会造成内存浪费问题。
 
@@ -1132,3 +1132,262 @@ sentinel monitor master 127.0.0.1 6379 2
 #### 选举领头Sentinel
 
 当一个主服务器被判断为客观下线时，监视这个主服务器的各个Sentinel会进行协商，选举出一个领头Sentinel，并由这个领头Sentinel对下线主服务器执行故障转移操作。
+
+## 13 ★★★ 分布式锁
+
+https://www.jianshu.com/p/a1ebab8ce78a
+
+为了防止分布式系统中多个进程之间相互干扰，需要使用分布式锁对这些进程进行调度。
+
+分布式锁应该具备哪些条件：
+
+- 在分布式环境下，一个方法在同一时间内只能被一个机器的一个线程执行
+- 高可用、高性能的获取锁与释放锁
+- 具备可重入特性
+- 具备锁失效机制，防止死锁
+- 具备非阻塞锁特性，即没有获取锁将直接返回获取锁失败
+
+**分布式锁实现有哪些**
+
+Memcached：利用 Memcached 的 `add` 命令。此命令是原子性操作，只有在 `key` 不存在的情况下，才能 `add` 成功，也就意味着线程得到了锁。
+
+Redis：和 Memcached 的方式类似，利用 Redis 的 `setnx` 命令。此命令同样是原子性操作，只有在 `key` 不存在的情况下，才能 `set` 成功。
+
+Zookeeper：利用 Zookeeper 的顺序临时节点，来实现分布式锁和等待队列。Zookeeper 设计的初衷，就是为了实现分布式锁服务的。
+
+Chubby：Google 公司实现的粗粒度分布式锁服务，底层利用了 Paxos 一致性算法。
+
+
+
+**介绍一下Redis实现分布式锁的概念**
+
+Redis有三种方法实现分布式锁：
+
+**1.通过Redis事务**
+
+先回顾一下Redis事务中的几个命令
+
+MULTI：开启事务
+
+EXEC：执行事务
+
+DISCARD：放弃事务，从事务状态转到非事务状态
+
+WATCH： 监视某个key，如果这个key 被其他客户端访问并且修改了，那么这个事务就执行不成功
+
+可以发现这个WATCH的功能很想乐观锁，判断这个值在锁住的阶段是否有更改，如果有更改就放弃这个操作。
+
+用Redis事务实现一个秒杀系统的库存扣减
+
+（1）用线程池初始化5000个客户端
+
+```java
+public static void intitClients() {
+ ExecutorService threadPool= Executors.newCachedThreadPool();
+ for (int i = 0; i < 5000; i++) {
+  threadPool.execute(new Client(i));
+ }
+ threadPool.shutdown();
+ 
+ while(true){ 
+         if(threadPool.isTerminated()){  
+             break;  
+         }  
+     }  
+}
+```
+
+(2)初始化商品的库存数为1000
+
+```java
+public static void initPrductNum() {
+  Jedis jedis = RedisUtil.getInstance().getJedis();
+  jedisUtils.set("produce", "1000");// 初始化商品库存数
+  RedisUtil.returnResource(jedis);// 返还数据库连接
+ }
+}
+```
+
+（3）库存扣减
+
+```java
+/**
+ * 顾客线程
+ * 
+ * @author linbingwen
+ *
+ */
+class client implements Runnable {
+ Jedis jedis = null;
+ String key = "produce"; // 商品数量的主键
+ String name;
+ 
+ public ClientThread(int num) {
+  name= "编号=" + num;
+ }
+ 
+ public void run() {
+ 
+  while (true) {
+   jedis = RedisUtil.getInstance().getJedis();
+   try {
+    jedis.watch(key);//监视商品数量
+    int num= Integer.parseInt(jedis.get(key));// 当前商品个数
+    if (num> 0) {
+     Transaction ts= jedis.multi(); // 开始事务
+     ts.set(key, String.valueOf(num - 1)); // 库存扣减
+     List<Object> result = ts.exec(); // 执行事务
+     if (result == null || result.isEmpty()) {
+      System.out.println("抱歉，您抢购失败，请再次重试");
+     } else {
+      System.out.println("恭喜您，抢购成功");
+      break;
+     }
+    } else {
+     System.out.println("抱歉，商品已经卖完");
+     break;
+    }
+   } catch (Exception e) {
+    e.printStackTrace();
+   } finally {
+    jedis.unwatch(); // 解除被监视的key
+    RedisUtil.returnResource(jedis);
+   }
+  }
+ }
+}
+```
+
+如果客户端发现商品数量被其他客户端修改了，就会不断自旋进行抢购
+
+**2.setnx、getset、expire、del等命令实现**
+
+1. `setnx`：命令表示如果key不存在，就会执行set命令，返回1，若是key已经存在，不会执行任何操作，返回0。
+2. `getset`：将key设置为给定的value值，并返回原来的旧value值，若是key不存在就会返回返回nil 。
+3. `expire`：设置key生存时间，当当前时间超出了给定的时间，就会自动删除key。
+4. `del`：删除key，它可以删除多个key，语法如下：`DEL key [key …]`，若是key不存在直接忽略。释放对应的锁，其他线程就可以通过setnx来获得锁
+
+综合伪代码如下：
+
+```java
+if（setnx（lock_sale_商品ID，1） == 1）{
+    expire（lock_sale_商品ID，30）
+    try {
+        do something ......
+    } finally {
+        del（lock_sale_商品ID）
+    }
+}
+```
+
+但上面代码存在一个问题，**setnx和expire是非原子性**的，可能存在一种情况，一个线程执行setnx成功得到锁以后，还没来得及执行expire就挂掉了，这时候这把锁还没有设置过期时间，变成死锁了。
+
+**如何解决：**setnx本身并不支持传入超时时间，set指令可以
+
+```java
+set（lock_sale_商品ID，value，30，NX）
+```
+
+这时候在联想一个场景，一个线程A得到了锁，设置了锁的有效期是30s，但是本身线程执行该代码的时间很慢，30s还没执行完，此时锁过期自动释放了，线程B得到了这个锁。
+
+随后A运行完了代码，执行del指令来释放锁。但是线程B还没来得及执行，所以相当于线程A把线程B得到的锁给释放了。
+
+**解决方法：**可以在释放锁之前先判断，当前持有锁的是不是自身线程，所以可以在setnx的时候将自身线程ID设为value，然后
+
+```dart
+String threadId = Thread.currentThread().getId()
+set（key，threadId ，30，NX）
+```
+
+```java
+if（threadId .equals(redisClient.get(key))）{
+    del(key)
+}
+```
+
+这样又产生了新的问题，判断和释放锁是两个独立的操作，不是原子性。所以归根结底，就是我们不想让一个线程在运行的时候，其他线程也来访问这个代码块。此时可以让获得锁的线程开启一个守护线程，来给快要过期的锁续航，如果快到过期时间了，线程还没执行完，守护线程会执行expire指令，续航20s，之后每20s执行一次，直到线程运行完了这块代码。当线程完成任务以后，会显示的关掉守护线程，即使节点1突然挂掉了，守护线程只是续航了20s，之后锁仍然会超时，自动释放
+
+**3.Redisson实现**
+
+![img](https://cdn.jsdelivr.net/gh/Peihao-Zhu/blogImage@master/data/20200904195117.png)
+
+可以发现这个看门狗和上面所说的守护线程很像，使用方法如下：
+
+```java
+RLock lock = redisson.getLock("lockName");
+lock.locl();
+lock.unlock();
+```
+
+Redisson 中加锁机制是通过lua脚本实现，Redisson会首先通过hash算法选择Redis Cluster集群中的一个节点，然后会把一个lua脚本发送到Redis中。
+
+lua脚本底层实现如下：
+
+```lua
+returncommandExecutor.evalWriteAsync(getName(), LongCodec.INSTANCE, command,
+ "if (redis.call('exists', KEYS[1]) == 0) then " +
+       "redis.call('hset', KEYS[1], ARGV[2], 1); " +
+       "redis.call('pexpire', KEYS[1], ARGV[1]); " +
+       "return nil; " +
+   "end; " +
+   "if (redis.call('hexists', KEYS[1], ARGV[2]) == 1) then " +
+       "redis.call('hincrby', KEYS[1], ARGV[2], 1); " +
+       "redis.call('pexpire', KEYS[1], ARGV[1]); " +
+       "return nil; " +
+   "end; " +
+   "return redis.call('pttl', KEYS[1]);",
+     Collections.<Object>singletonList(getName()), internalLockLeaseTime, getLockName(threadId));
+```
+
+Redis.call()的第一个参数表示要执行的命令，KEYS[1]表示要加锁的key值，ARGV[1]表示key的有效期,默认是30s,ARGV[2]表示加锁的客户端的ID
+
+lua脚本封装了执行的业务逻辑代码，它能保证执行业务代码的原子性，通过hset lockName进行加锁。
+
+如果第一个客户端已经通过hset命令加锁，第二个客户端继续执行lua脚本，会发现锁被占用，会通过pttl myLock返回第一个客户端持有的锁的生存时间。若还有生存时间，第二个客户端会不停自旋尝试获取锁。
+
+Redisson中可重入锁的实现是通过incrby lockName来实现，重入计数器会+1，释放一次计数-1.最后用完锁执行 del lockName可以直接释放锁。
+
+多窗口抢票的例子
+
+```java
+public class SellTicket implements Runnable {
+    private int ticketNum = 1000;
+    RLock lock = getLock();
+    // 获取锁 
+    private RLock getLock() {
+        Config config = new Config();
+        config.useSingleServer().setAddress("redis://localhost:6379");
+        Redisson redisson = (Redisson) Redisson.create(config);
+        RLock lock = redisson.getLock("keyName");
+        return lock;
+    }
+ 
+    @Override
+    public void run() {
+        while (ticketNum>0) {
+            // 获取锁,并设置超时时间
+            lock.lock(1, TimeUnit.MINUTES);
+            try {
+                if (ticketNum> 0) {
+                    System.out.println(Thread.currentThread().getName() + "出售第 " + ticketNum-- + " 张票");
+                }
+            } finally {
+                lock.unlock(); // 释放锁
+            }
+        }
+    }
+}
+```
+
+```java
+public class Test {
+    public static void main(String[] args) {
+        SellTicket sellTick= new SellTicket();
+        // 开启五条线程，模拟5个窗口
+        for (int i=1; i<=5; i++) {
+            new Thread(sellTick, "窗口" + i).start();
+        }
+    }
+}
+```
+

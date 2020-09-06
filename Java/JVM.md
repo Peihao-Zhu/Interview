@@ -267,6 +267,8 @@ Serial 翻译为串行，也就是说它以串行的方式执行。
 
 缩短停顿时间是以牺牲吞吐量和新生代空间来换取的：新生代空间变小，垃圾回收变得频繁，导致吞吐量下降。
 
+> 注意：这里吞吐量高并不一定停顿时间短。停顿时间短，表示响应要求高，需要快速的执行完垃圾收集，可能为了快速响应，每次收集的内存并不是很多，要多次执行垃圾回收。但是吞吐量高，表示可以相对长时间的进行垃圾收集。
+
 可以通过一个开关参数打开 GC 自适应的调节策略（GC Ergonomics），就不需要手工指定新生代的大小（-Xmn）、Eden 和 Survivor 区的比例、晋升老年代对象年龄等细节参数了。虚拟机会根据当前系统的运行情况收集性能监控信息，动态调整这些参数以提供最合适的停顿时间或者最大的吞吐量。
 
 **Serial Old收集器**
@@ -442,6 +444,18 @@ public static final int value = 123;
 
 将常量池的符号引用替换为直接引用的过程。
 
+符号引用：
+
+符号引用与虚拟机的内存布局无关，引用的目标并不一定加载到内存中。在[Java](http://lib.csdn.net/base/javaee)中，一个java类将会编译成一个class文件。在编译时，java类并不知道所引用的类的实际地址，因此只能使用符号引用来代替。比如org.simple.People类引用了org.simple.Language类，在编译时People类并不知道Language类的实际内存地址，因此只能使用符号org.simple.Language假设是这个，当然实际中是由类似于CONSTANT_Class_info的常量来表示的）来表示Language类的地址。
+
+直接引用：
+
+- 直接指向目标的指针
+- 相对偏移量
+- 一个能间接定位到目标的句柄
+
+https://www.cnblogs.com/shinubi/articles/6116993.html
+
 **初始化**
 
 注意：这个初始化只是初始化类的静态变量和静态代码块为用户自定义的值，对于非静态部分是在类实例化的时候才会初始化。
@@ -615,6 +629,10 @@ protected Class<?> loadClass(String name, boolean resolve)
 
 ![img](https://upload-images.jianshu.io/upload_images/7634245-7b7882e1f4ea5d7d.png?imageMogr2/auto-orient/strip|imageView2/2/w/1200/format/webp)
 
+![img](https://cdn.jsdelivr.net/gh/Peihao-Zhu/blogImage@master/data/20200906164749)
+
+
+
 委派的流程如上图所示
 
 **双亲委派机制的作用**
@@ -656,14 +674,14 @@ Out Of Memory--“内存用完了”，来源于java.lang.OutOfMemoryError。当
 
 **3.OOM类型**
 
-在第一节中介绍的JVM内存模型中，除了程序计数器意外，其他内存区域都可能抛出OOM
+在第一节中介绍的JVM内存模型中，除了程序计数器以外，其他内存区域都可能抛出OOM
 
 最常见的有以下几种
 
 - java.lang.OutOfMemoryError: Java heap space ------>java堆内存溢出，此种情况最常见，一般由于内存泄露或者堆的大小设置不当引起。对于内存泄露，需要通过内存监控软件查找程序中的泄露代码，而堆大小可以通过虚拟机参数-Xms,-Xmx等修改。
 - java.lang.OutOfMemoryError: MetaSpace ------>存放虚拟机加载类的信息(.class文件)，编译后的代码等，如果，满了就会报错。
 - java.lang.StackOverflowError ------> 不会抛OOM error，但也是比较常见的Java内存溢出。JAVA虚拟机栈溢出，一般是由于程序中存在死循环或者深度递归调用造成的，栈大小设置太小也会出现此种溢出。可以通过虚拟机参数-Xss来设置栈的大小。
-- java.lang.OutOfMemoryError:GC overhead limit exceeded  ------>  GC超过了极限；超过98%的时间来做GC并且会收不到2%的堆内存；连续多次GC都只回收不到2%的情况下会抛出
+- java.lang.OutOfMemoryError:GC overhead limit exceeded  ------>  GC超过了极限；超过98%的时间来做GC并且回收不到2%的堆内存；连续多次GC都只回收不到2%的情况下会抛出
 - java.lang.OutOfMemoryError:Direct buffer memory  ------> 在做NIO程序的时候，使用ByteBuffer读取活写入数据。使用Native函数分配堆外的内存（也就是本地内存），然后通过一个存储在堆里的DirectByteBuffer对象作为那块内存的引用。这样可以避免将数据堆内堆外来回复制。如果不断分配本地内存，会造成堆内存很充足，但是本地内存用完了，当再次尝试分配本地内存就会报错。
 - java.lang.OutOfMemoryError:unable to create new native thread ------>创建线程达到了上限
 
@@ -677,5 +695,5 @@ https://www.cnblogs.com/hollischuang/p/12453988.html
 
 ## JVM还能运行哪些语言
 
-JVM是一个可以运行字节码（.class）的平台，所以Java语言只要经过一次编译以后就可以在不同计算机（安装JVM的计算机）中运行。除了Java以外，，只要能编译产生字节码文件的语言都可以在JVM上运行，如：Kotlin、Scala、Jython、JRuby等
+JVM是一个可以运行字节码（.class）的平台，所以Java语言只要经过一次编译以后就可以在不同计算机（安装JVM的计算机）中运行。除了Java以外，只要能编译产生字节码文件的语言都可以在JVM上运行，如：Kotlin、Scala、Jython、JRuby等
 
