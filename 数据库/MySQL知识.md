@@ -468,66 +468,7 @@ https://blog.csdn.net/darkangel1228/article/details/80003967
 
 ## 12 ★☆☆ redo、undo、binlog 日志的作用。	
 
-https://blog.csdn.net/u010002184/article/details/88526708
-
- 
-
-![img](file:////private/var/folders/gw/tm5w3wzx75b28wcz_7klvkxm0000gn/T/com.kingsoft.wpsoffice.mac/wps-zhupeihao/ksohtml/wpsWR5YnP.jpg) 
-
- 
-
-**一条更新语句执行的顺序**
-
-update T set c=c+1 where ID=2;
-
- 
-
-a. 执行器先找引擎取 ID=2 这一行。ID 是主键，引擎直接用树搜索找到这一行。如果 ID=2 这一行所在的数据页本来就在内存中，就直接返回给执行器；否则，需要先从磁盘读入内存，然后再返回。
-
-b. 执行器拿到引擎给的行数据，把这个值加上 1，比如原来是 N，现在就是 N+1，得到新的一行数据，再调用引擎接口写入这行新数据。
-
-c. 引擎将这行新数据更新到内存中，同时将这个更新操作记录到 redo log 里面，此时 redo log 处于 prepare 状态。然后告知执行器执行完成了，随时可以提交事务。
-
-d. 执行器生成这个操作的 binlog，并把 binlog 写入磁盘。
-
-e. **执行器调用引擎的提交事务接口**，引擎把刚刚写入的 redo log 改成提交（commit）状态，更新完成。
-
- 
-
-**Redo log**
-
-是InnoDB存储引擎层的日志。用于记录事务操作的变化，记录的是数据修改之后的值，不管事务是否提交都会记录下来。在数据库掉电时，InnoDB会使用redo log恢复到掉电以前的时刻，来保证数据的完整性
-
- 
-
-在更新一条语句时，InnoDB会把更新记录写到redo log中，然后更新内存，然后在空闲的时候或是按照设定的更新策略将redo log中的内容更新到磁盘。**Redo log日志大小是固定的**，即记录满了后就从头循环写。Checkpoint 以前表示已经更新到磁盘的文件，write pos表示当前写的位置，如果两个指针相遇了，表示redo log已经满了，需要同步到磁盘中。
-
-![img](file:////private/var/folders/gw/tm5w3wzx75b28wcz_7klvkxm0000gn/T/com.kingsoft.wpsoffice.mac/wps-zhupeihao/ksohtml/wpsArv8OA.png) 
-
-
-
-每次对记录的修改写入缓冲池的时候，也会写一份redo log（记录者哪一页修改了什么数据），redo log也放在磁盘中，其实也会在内存中有一个buffer，之后再写到redo log中去。可以发现写入redo log也是磁盘IO，但它是顺序IO，比从缓冲池将数据页随机IO到磁盘快很多。 ![在这里插入图片描述](https://img-blog.csdnimg.cn/20200524181219383.png?x-oss-process=image/watermark,type_ZmFuZ3poZW5naGVpdGk,shadow_10,text_aHR0cHM6Ly9ibG9nLmNzZG4ubmV0L3FxXzM5NzUxMzIw,size_16,color_FFFFFF,t_70)
-
- 
-
-**Binlog 日志模块**
-
-binlog属于MySQL Server层面，称为归档日志，以二进制形式记录语句的原始逻辑，binlog是没有crash-safe能力
-
- 
-
-**Redo log和binlog区别**
-
-- Redo log是物理日志，记录数据页更新的内容，binlog是逻辑日志，记录更新语句的原始逻辑
-- Redo log是InnoDB层面，binlog是MySQL Server层
-- Redo log是循环写，日志空间大小是固定的，binlog是追加写，指一份写到一定大小的时候，会更换文件，而不会覆盖原来的。
-- binlog用于主从复制，redo log是作为数据库宕机恢复数据使用的
-
- 
-
-**Undo log**
-
-每条数据修改(insert、update或delete)操作都伴随一条undo log的生成,并且回滚日志必须先于数据持久化到磁盘上
+- 参考文章 https://blog.csdn.net/qq_39751320/article/details/108903523
 
 ## 13 ★★☆  union和union all的区别
 

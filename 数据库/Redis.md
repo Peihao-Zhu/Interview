@@ -109,7 +109,7 @@ typedef struct dict{
 
 在 rehash 期间，每次对字典执行添加、删除、查找或者更新操作时，都会执行一次渐进式 rehash。添加操作都会直接将键值对放入到ht[1]中。
 
-采用渐进式 rehash 会导致字典中的数据分散在两个 dictht 上，因此两个表都会进行相关操作。。
+采用渐进式 rehash 会导致字典中的数据分散在两个 dictht 上，因此两个表都会进行相关操作。
 
 #### 跳跃表
 
@@ -1390,4 +1390,12 @@ public class Test {
     }
 }
 ```
+
+
+
+## 13 ★★★ 如何统计网站的UV
+
+数据量少的话用set 或者 hashmap啥的都行，如果用户量很大，那用前两者就会导致内存不够用的现象，可以使用hyperLogLog，具体原理在下文中介绍
+
+https://blog.justwe.site/post/redis-hyperloglog/
 
