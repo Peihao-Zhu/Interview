@@ -697,3 +697,46 @@ https://www.cnblogs.com/hollischuang/p/12453988.html
 
 JVM是一个可以运行字节码（.class）的平台，所以Java语言只要经过一次编译以后就可以在不同计算机（安装JVM的计算机）中运行。除了Java以外，只要能编译产生字节码文件的语言都可以在JVM上运行，如：Kotlin、Scala、Jython、JRuby等
 
+## JVM 相关命令详解
+
+在进行JVM 分析之前，需要对Java线程的几个状态进行了解
+
+- 死锁，Deadlock
+- 执行中，Runnable
+- 等待资源:Waiting on condition: 需要结合stacktrace来分析
+  - 如果大量线程都在wait on condition，从线程stack看，正等待网络读写，可能是网络瓶颈
+  - 该线程在sleep，等待超时时间到达
+- 等待获取监视器，waiting on monitor entry
+- 对象等待，Object.wait()或TIMED_WAITING
+
+#### 一、jps 命令
+
+用法： jps [options][hostid
+
+​			options:命令选项，对输出格式进行控制
+
+​			hostid:指定特定主机
+
+功能描述：jps是用于查看有权访问的hotspot虚拟机的进程. 当未指定hostid时，默认查看本机jvm进程，否则查看指定的hostid机器上的jvm进程，此时hostid所指机器必须开启jstatd服务。 jps可以列出jvm进程lvmid，主类类名，main函数参数, jvm参数，jar名称等信息。
+
+#### 二、jstack命令
+
+https://juejin.im/post/6844904152850497543
+
+用法： jstack [option] pid
+
+功能描述：打印某个进程的堆栈信息，jstack是JVM自带的Java堆栈跟踪工具，用于打印Java进程ID、core file、远程调试服务的堆栈信息。可以生成虚拟机当前时刻的线程快照，用来定位线程长时间停顿的原因，如线程间死锁、死循环、请求外部资源导致的长时间等待等问题。
+
+
+
+**排查死锁的过程**
+
+1. 首先用 jps -l 查看当前Java 程序中运行的进程ID
+2. 使用jstack -l  pid 查看线程堆栈信息，其中会提示那几个线程之间出现了死锁等信息
+
+**分析CPU过高的问题**
+
+1. 使用top 命令 查看哥哥进程的cpu使用情况
+2. 使用top -Hp pid 查看该进程下 各个线程的cpu使用情况
+3. 使用jstack pid 查看该进程的堆栈状态，然后找到其中对应的线程（**注意：top中的线程id是十进制的，但是jstack中的nid 是十六进制，需要转换**）
+4. Stack -l pid >/log.txt  命令 对堆栈信息进行输出，然后分析。
