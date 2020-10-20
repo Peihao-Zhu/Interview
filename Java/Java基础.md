@@ -425,29 +425,45 @@ https://upload-images.jianshu.io/upload_images/7853175-ab75cd3738471507.png?imag
 
 
 
-## ArrayList/LinkedList
+## ArrayList/LinkedList 的区别
 
-### ArrayList
+**ArrayList**
 
-基于数组实现的，默认大小是10。添加元素时如果数组容量不够，就使用grow（）方法进行扩容，新容量的大小是原大小的1.5倍。扩容操作需要调用Arrays.copyOf()把原数组整个复制到新数组中。可见扩容的代价很高
+基于数组实现（需要连续的存储空间），默认大小是10。添加元素时如果数组容量不够，就使用grow（）方法进行扩容，新容量的大小是原大小的1.5倍。扩容操作需要调用Arrays.copyOf()把原数组整个复制到新数组中。可见扩容的代价很高
 
 ```java
 oldCapacity + (oldCapacity >> 1)
 ```
 
-**删除元素**
 
-需要调用Systems.arraycopy()将index+1后面的元素都复制到index位置上
 
 **Fail-Fast**
 
 modeCount用来记录ArrayList结构发生变化的次数，在进行序列化或者迭代等操作时，需要比较前后的modCount是否改变，如果改变了会抛出ConcurrentModificationException
 
-### LinkedList
+**LinkedList**
 
-双向链表实现
+双向链表实现，不连续的存储空间
 
 
+
+**两者比较**
+
+- 查找
+
+如果是查找第n个元素，`ArrayList`更有优势，因为是连续的内存空间，可以通过起始地址+偏移量获得第n个元素的内存地址，但是`LinkedList`不连续，无法计算偏移量，只能一个一个找。
+
+如果是查找具体的‘ele' 那么都需要一个一个遍历，两者差不多
+
+- 插入
+
+如果从中间或者开头插入，那`ArrayList` 会很慢，因为需要将后面的大量数据通过调用Systems.arraycopy()往后移动，而`LinkedList`只需要改变指针就好了
+
+如果往末尾插入元素，`ArrayList` 可以直接计算出内存地址，然后插入；`LinkedList`也有指针可以直接指向尾部
+
+- 删除
+
+和插入类似
 
 ## final/static关键字
 
