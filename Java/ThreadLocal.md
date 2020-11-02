@@ -1,10 +1,12 @@
+[TOC]
+
 https://www.jianshu.com/p/98b68c97df9b
 
 ## ThreadLocal是什么
 
 ThreadLocal不是用来解决共享对象的多线程访问的，其使得各个线程能够保持各自独立的对象。每个线程的变量互不干扰，在高并发场景下，可以实现无状态调用。
 
-介绍完可能还是有点懵逼，再多讲一下：在并发编程的时候，成员变量如果不做任何处理是线程不安全的，各个线程都在操作同一个变量，显然是不行的。
+介绍完可能还是有点懵逼，再多讲一下：在并发编程的时候，成员变量如果不做任何处理是线程不安全的，各个线程都在操作同一个变量，显然是不行的，也就是说让这个变量的作用域变成线程的作用域（这里的作用域可以想到类中变量的作用域，全局变量和局部变量），线程一般可以横跨几个函数，所以ThreadLocal变量也能横跨这几个函数(不然总不能每个函数都传入线程上下文contex吧....)
 
 
 
@@ -100,11 +102,11 @@ static class Entry extends WeakReference<ThreadLocal> {
 }
 ```
 
-Entry继承自WeakReference（弱引用，生命周期只能存活到下次GC前），**但只有Key是弱引用类型的，Value并非弱引用。**
+Entry继承自WeakReference（弱引用，生命周期只能存活到下次GC），**但只有Key是弱引用类型的，Value并非弱引用。**
 
 ## Hash冲突怎么解决
 
-和HashMap的最大的不同在于，ThreadLocalMap结构非常简单，没有next引用，也就是说ThreadLocalMap中解决Hash冲突的方式并非链表的方式，而是采用线性探测的方式，所谓线性探测，就是根据初始key的hashcode值确定元素在table数组中的位置，如果发现这个位置上已经有其他key值的元素被占用，则利用固定的算法寻找一定步长的下个位置，依次判断，直至找到能够存放的位置。
+和HashMap的最大的不同在于，ThreadLocalMap结构非常简单，没有next引用，也就是说ThreadLocalMap中解决Hash冲突的方式并非链表的方式，而是采用**线性探测**的方式，所谓线性探测，就是根据初始key的hashcode值确定元素在table数组中的位置，如果发现这个位置上已经有其他key值的元素被占用，则利用固定的算法寻找一定步长的下个位置，依次判断，直至找到能够存放的位置。
 
 **所以这里引出的良好建议是：每个线程只存一个变量，这样的话所有的线程存放到map中的Key都是相同的ThreadLocal，如果一个线程要保存多个变量，就需要创建多个ThreadLocal，多个ThreadLocal放入Map中时会极大的增加Hash冲突的可能。**
 
@@ -115,7 +117,7 @@ Entry继承自WeakReference（弱引用，生命周期只能存活到下次GC前
 由于ThreadLocalMap的key是弱引用，而Value是强引用。这就导致了一个问题，ThreadLocal在没有外部对象强引用时，发生GC时弱引用Key会被回收，而Value不会回收，如果创建ThreadLocal的线程一直持续运行，那么这个Entry对象中的value就有可能一直得不到回收，发生内存泄露。
 
 **如何避免泄漏**
- 既然Key是弱引用，那么我们要做的事，就是在调用ThreadLocal的get()、set()方法时完成后再调用remove方法，将Entry节点和Map的引用关系移除，这样整个Entry对象在GC Roots分析后就变成不可达了，下次GC的时候就可以被回收。
+ 既然Key是弱引用，那么我们要做的事，就是在调用ThreadLocal的get()、set()方法时完成后再调用remove方法，**将Entry节点和Map的引用关系移除**，这样整个Entry对象在GC Roots分析后就变成不可达了，下次GC的时候就可以被回收。
 
 如果使用ThreadLocal的set方法之后，没有显示的调用remove方法，就有可能发生内存泄露，所以养成良好的编程习惯十分重要，使用完ThreadLocal之后，记得调用remove方法。
 
@@ -159,13 +161,13 @@ public static Session getCurrentSession(){
 
 
 
-使用ThreadLocal的典型场景如数据库连接管理，线程会话管理等场景，只适用于独立变量副本的情况，如果变量为全局共享的，则不适用在高并发下使用。
+**使用ThreadLocal的典型场景如数据库连接管理，线程会话管理等场景**，只适用于独立变量副本的情况，如果变量为全局共享的，则不适用在高并发下使用。
 
 ## 总结
 
 - 每个ThreadLocal只能保存一个变量副本，如果想要上线一个线程能够保存多个副本以上，就需要创建多个ThreadLocal。
 - ThreadLocal内部的ThreadLocalMap键为弱引用，会有内存泄漏的风险。
-- 适用于无状态，副本变量独立后不影响业务逻辑的高并发场景。如果如果业务逻辑强依赖于副本变量，则不适合用ThreadLocal解决，需要另寻解决方案。
+- 适用于无状态，副本变量独立后不影响业务逻辑的高并发场景。如果业务逻辑强依赖于副本变量，则不适合用ThreadLocal解决，需要另寻解决方案。
 
 
 

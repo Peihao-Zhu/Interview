@@ -296,7 +296,7 @@ CMS（Concurrent Mark Sweep），Mark Sweep 指的是标记 - 清除算法。
 具有以下缺点：
 
 - 吞吐量低：低停顿时间是以牺牲吞吐量为代价的，导致 CPU 利用率不够高。
-- 无法处理浮动垃圾，可能出现 Concurrent Mode Failure。浮动垃圾是指并发清除阶段由于用户线程继续运行而产生的垃圾，这部分垃圾只能到下一次 GC 时才能进行回收。由于浮动垃圾的存在，因此需要预留出一部分内存，意味着 CMS 收集不能像其它收集器那样等待老年代快满的时候再回收。如果预留的内存不够存放浮动垃圾，就会出现 Concurrent Mode Failure，这时虚拟机将临时启用 Serial Old 来替代 CMS。
+- 无法处理浮动垃圾，**可能出现 Concurrent Mode Failure**。浮动垃圾是指并发清除阶段由于用户线程继续运行而产生的垃圾，这部分垃圾只能到下一次 GC 时才能进行回收。由于浮动垃圾的存在，因此需要预留出一部分内存，意味着 CMS 收集不能像其它收集器那样等待老年代快满的时候再回收。如果预留的内存不够存放浮动垃圾，就会出现 Concurrent Mode Failure，这时虚拟机将临时启用 Serial Old 来替代 CMS。
 - 标记 - 清除算法导致的空间碎片，往往出现老年代空间剩余，但无法找到足够大连续空间来分配当前对象，不得不提前触发一次 Full GC。
 
 **G1收集器**
@@ -653,7 +653,7 @@ protected Class<?> loadClass(String name, boolean resolve)
 | -Xms | 初始堆内存大小，默认是物理内存的1/64 |
 | -Xmx | 最大堆内存，默认是物理内存的1/4      |
 | -Xss | 栈内存大小，默认是512～1024kb        |
-| -Xmm |                                      |
+| -Xmm | 年轻代内存大小                       |
 
 
 
@@ -684,7 +684,7 @@ Out Of Memory--“内存用完了”，来源于java.lang.OutOfMemoryError。当
 - java.lang.OutOfMemoryError: MetaSpace ------>存放虚拟机加载类的信息(.class文件)，编译后的代码等，如果，满了就会报错。
 - java.lang.StackOverflowError ------> 不会抛OOM error，但也是比较常见的Java内存溢出。JAVA虚拟机栈溢出，一般是由于程序中存在死循环或者深度递归调用造成的，栈大小设置太小也会出现此种溢出。可以通过虚拟机参数-Xss来设置栈的大小。
 - java.lang.OutOfMemoryError:GC overhead limit exceeded  ------>  GC超过了极限；超过98%的时间来做GC并且回收不到2%的堆内存；连续多次GC都只回收不到2%的情况下会抛出
-- java.lang.OutOfMemoryError:Direct buffer memory  ------> 在做NIO程序的时候，使用ByteBuffer读取活写入数据。使用Native函数分配堆外的内存（也就是本地内存），然后通过一个存储在堆里的DirectByteBuffer对象作为那块内存的引用。这样可以避免将数据堆内堆外来回复制。如果不断分配本地内存，会造成堆内存很充足，但是本地内存用完了，当再次尝试分配本地内存就会报错。
+- java.lang.OutOfMemoryError:Direct buffer memory  ------> 在做NIO程序的时候，使用ByteBuffer读取或写入数据。使用Native函数分配堆外的内存（也就是本地内存），然后通过一个存储在堆里的DirectByteBuffer对象作为那块内存的引用。这样可以避免将数据堆内堆外来回复制。如果不断分配本地内存，会造成堆内存很充足，但是本地内存用完了，当再次尝试分配本地内存就会报错。
 - java.lang.OutOfMemoryError:unable to create new native thread ------>创建线程达到了上限
 
 ## Java对象的内存分配如何保证线程安全
@@ -738,7 +738,7 @@ https://juejin.im/post/6844904152850497543
 
 **分析CPU过高的问题**
 
-1. 使用top 命令 查看哥哥进程的cpu使用情况
+1. 使用top 命令 查看各个进程的cpu使用情况
 2. 使用top -Hp pid 查看该进程下 各个线程的cpu使用情况
 3. 使用jstack pid 查看该进程的堆栈状态，然后找到其中对应的线程（**注意：top中的线程id是十进制的，但是jstack中的nid 是十六进制，需要转换**）
 4. Stack -l pid >/log.txt  命令 对堆栈信息进行输出，然后分析。

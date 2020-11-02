@@ -1,4 +1,4 @@
-
+[TOC]
 
 
 
@@ -76,7 +76,7 @@ Bean Factory 和ApplicationContext 是Spring两个很重要的容器，前者提
 
 **ApplicationContext  Bean的生命周期**
 
-![Bean的生命周期](http://c.biancheng.net/uploads/allimg/190701/5-1ZF1100325116.png)
+![Bean的生命周期](https://cdn.jsdelivr.net/gh/Peihao-Zhu/blogImage@master/data/20201031151936.png)
 
 
 
@@ -305,4 +305,12 @@ name is :jack
 destory被调用
 myDestroy被调用
 ```
+
+
+
+
+
+## Java日志框架：slf4j作用及其实现原理
+
+https://www.cnblogs.com/xrq730/p/8619156.html
 
