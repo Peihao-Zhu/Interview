@@ -33,7 +33,9 @@ Spring Boot Web starter使用Tomcat作为默认的嵌入式servlet容器, 如果
 </dependency>
 ```
 
-#### 4.介绍一下@SpringBootApplication注解
+## SpringBoot的自动装配原理
+
+https://www.jianshu.com/p/88eafeb3f351
 
 ```java
 package org.springframework.boot.autoconfigure;
@@ -65,8 +67,71 @@ public @interface SpringBootConfiguration {
 可以看出大概可以把 `@SpringBootApplication `看作是 `@Configuration`、`@EnableAutoConfiguration`、`@ComponentScan `注解的集合。根据 SpringBoot官网，这三个注解的作用分别是：
 
 - `@EnableAutoConfiguration`：启用 SpringBoot 的自动配置机制
-- `@ComponentScan`： 扫描被`@Component` (`@Service`,`@Controller`)注解的bean，注解默认会扫描该类所在的包下所有的类。
+- `@ComponentScan`： 扫描被`@Component` (`@Service`,`@Controller`)注解的bean，**注解默认会扫描该类所在的包下所有的类。**
 - `@Configuration`：允许在上下文中注册额外的bean或导入其他配置类
+
+这里重点看`@EnableAutoConfiguration` 因为是这个注解实现了SpringBoot的自动装配
+
+```java
+@Import({AutoConfigurationImportSelector.class})
+public @interface EnableAutoConfiguration {
+    String ENABLED_OVERRIDE_PROPERTY = "spring.boot.enableautoconfiguration";
+
+    Class<?>[] exclude() default {};
+
+    String[] excludeName() default {};
+}
+```
+
+利用`@Import`注解，将所有符合自动装配条件的bean注入到IOC容器中，关于`@Import`注解原理这里就不再阐述，感兴趣的同学可以参考此篇文章：[Spring @Import注解源码解析](https://mp.weixin.qq.com/s?__biz=MzU5MDgzOTYzMw==&mid=2247484613&idx=1&sn=374f1c3cc601bd86caaff29a8bb76d7d&scene=21#wechat_redirect)
+
+进入类`AutoConfigurationImportSelector`，观察其`selectImports`方法，这个方法执行完毕后，Spring会把这个方法返回的类的全限定名数组里的所有的类都注入到IOC容器中
+
+```java
+private static final String[] NO_IMPORTS = new String[0];
+
+//从这里可以看出该类实现很多的xxxAware和DeferredImportSelector，所有的aware都优先于selectImports
+//方法执行，也就是说selectImports方法最后执行，那么在它执行的时候所有需要的资源都已经获取到了
+public class AutoConfigurationImportSelector implements DeferredImportSelector, BeanClassLoaderAware, ResourceLoaderAware, BeanFactoryAware, EnvironmentAware, Ordered {
+...
+public String[] selectImports(AnnotationMetadata annotationMetadata) {
+        if (!this.isEnabled(annotationMetadata)) {
+            return NO_IMPORTS;
+        } else {
+//1加载META-INF/spring-autoconfigure-metadata.properties文件
+            AutoConfigurationMetadata autoConfigurationMetadata = AutoConfigurationMetadataLoader.loadMetadata(this.beanClassLoader);
+//2获取注解的属性及其值（PS：注解指的是@EnableAutoConfiguration注解）
+            AnnotationAttributes attributes = this.getAttributes(annotationMetadata);
+//3.在classpath下所有的META-INF/spring.factories文件中查找org.springframework.boot.autoconfigure.EnableAutoConfiguration的值，并将其封装到一个List中返回
+            List<String> configurations = this.getCandidateConfigurations(annotationMetadata, attributes);
+//4.对上一步返回的List中的元素去重、排序
+            configurations = this.removeDuplicates(configurations);
+//5.依据第2步中获取的属性值排除一些特定的类
+            Set<String> exclusions = this.getExclusions(annotationMetadata, attributes);
+//6对上一步中所得到的List进行过滤，过滤的依据是条件匹配。这里用到的过滤器是
+//org.springframework.boot.autoconfigure.condition.OnClassCondition最终返回的是一个ConditionOutcome[]
+//数组。（PS：很多类都是依赖于其它的类的，当有某个类时才会装配，所以这次过滤的就是根据是否有某个
+//class进而决定是否装配的。这些类所依赖的类都写在META-INF/spring-autoconfigure-metadata.properties文件里）
+            this.checkExcludedClasses(configurations, exclusions);
+            configurations.removeAll(exclusions);
+            configurations = this.filter(configurations, autoConfigurationMetadata);
+            this.fireAutoConfigurationImportEvents(configurations, exclusions);
+            return StringUtils.toStringArray(configurations);
+        }
+    }
+  protected List<String> getCandidateConfigurations(AnnotationMetadata metadata, AnnotationAttributes attributes) {
+        List<String> configurations = SpringFactoriesLoader.loadFactoryNames(this.getSpringFactoriesLoaderFactoryClass(), this.getBeanClassLoader());
+        Assert.notEmpty(configurations, "No auto configuration classes found in META-INF/spring.factories. If you are using a custom packaging, make sure that file is correct.");
+        return configurations;
+    }
+
+...
+}
+```
+
+**总结**：@EnableAutoConfiguration作用就是从classpath中搜寻所有的META-INF/spring.factories配置文件，并将其中org.springframework.boot.autoconfigure.EnableutoConfiguration对应的配置项通过反射（Java Refletion）实例化为对应的标注了@Configuration的JavaConfig形式的IoC容器配置类，然后汇总为一个并加载到IoC容器。这些功能配置类要生效的话，会去classpath中找是否有该类的依赖类（也就是pom.xml必须有对应功能的jar包才行）并且配置类里面注入了默认属性值类，功能类可以引用并赋默认值。生成功能类的原则是自定义优先，没有自定义时才会使用自动装配类。
+
+- 所以功能类能生效需要的条件：（1）spring.factories里面有这个类的配置类（一个配置类可以创建多个围绕该功能的依赖类）（2）pom.xml里面需要有对应的jar包
 
 
 
@@ -146,7 +211,7 @@ public class CrawlControl {
 }
 ```
 
-Spring Ioc 中 依赖倒置和原则和依赖注入的了解
+Spring Ioc 中 依赖倒置原则和依赖注入的了解
 
 https://www.zhihu.com/question/23277575/answer/169698662
 
@@ -199,7 +264,7 @@ cnblogs.com/myseries/p/11729800.html
 
 如果是无状态Bean(不会对Bean的成员执行查询以外的操作),那么就是线程安全的，比如Spring mvc的Controller、Service、Dao等。
 
-但是对于又状态Bean，框架并没有对bean进行多线程的封装处理，需要开发人员来做线程安全的保证，最简单的方法就是改变bean的作用域，变成prototype类型
+但是对于有状态Bean，框架并没有对bean进行多线程的封装处理，需要开发人员来做线程安全的保证，最简单的方法就是改变bean的作用域，变成prototype类型
 
 **@Controller @Service 是不是线程安全的？**
 

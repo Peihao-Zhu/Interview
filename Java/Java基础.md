@@ -336,6 +336,8 @@ ConcurrentHashMap
 
 - **ConcurrentHashMap 简单介绍？**
 
+  https://www.jianshu.com/p/a7767e6ff2a2
+
 ①、重要的常量：
 
 private transient volatile int sizeCtl;
@@ -433,6 +435,18 @@ https://upload-images.jianshu.io/upload_images/7853175-ab75cd3738471507.png?imag
 
 
 
+### HashMap 8为什么先插入元素在判断扩容？
+
+https://blog.csdn.net/LovePluto/article/details/79755496
+
+### ConcurrentHashMap1.8 - 扩容详解
+
+https://blog.csdn.net/ZOKEKAI/article/details/90051567
+
+### HashMap和ConcurrentHashMap知识点总结
+
+https://www.jianshu.com/p/a7767e6ff2a2
+
 ## ArrayList/LinkedList 的区别
 
 **ArrayList**
@@ -477,6 +491,8 @@ modeCount用来记录ArrayList结构发生变化的次数，在进行序列化�
 
 ### final
 
+https://blog.csdn.net/zhaotengfei36520/article/details/45098977
+
 **1.数据**
 
 声明数据为常量，可以是编译时常量，也可以是在运行时被初始化后不能被改变的常量。
@@ -493,7 +509,7 @@ y.a = 1;
 
 **2.方法**
 
-声明方法不能被子类重写。
+声明方法不能被子类重写，但是可以被继承。
 
 **private 方法隐式地被指定为 final**，如果在子类中定义的方法和基类中的一个 private 方法相同，此时子类的方法不是重写基类方法，而是在子类中定义了一个新的方法。
 
@@ -501,7 +517,7 @@ y.a = 1;
 
 声明类不允许被继承,final类中的成员方法被隐式的指定为final方法
 
-
+**注意：final不能修饰抽象类和接口**
 
 说明：使用final的原因。
 
@@ -885,6 +901,8 @@ https://blog.csdn.net/cyl101816/article/details/67640843
 
 **finally:**是在异常处理时提供finally块来执行任何清除操作。不管有没有异常被抛出、捕获，finally块都会被执行。try块中的内容是在无异常时执行到结束。catch块中的内容，是在try块内容发生catch所声明的异常时，跳转到catch块中执行。finally块则是无论异常是否发生，都会执行finally块的内容，所以在代码逻辑中有需要无论发生什么都必须执行的代码，就可以放在finally块中。
 
+https://blog.csdn.net/qq_39135287/article/details/78455525
+
 **finalize:**是方法名。java技术允许使用finalize（）方法在垃圾收集器将对象从内存中清除出去之前做必要的清理工作。这个方法是由垃圾收集器在确定这个对象没有被引用时，会自动调用这个方法。它是在object类中定义的，因此所有的类都继承了它。子类覆盖finalize（）方法以整理系统资源或者被执行其他清理工作。finalize（）方法是在垃圾收集器删除对象之前对这个对象调用的。 
 		但是finalize（）调用时机并不确定，有时候资源已经耗尽，但是gc仍然没有触发，所以不能依赖finalize()来回收占用的资源。
 
@@ -926,6 +944,12 @@ Person person3 = constructor.newInstance();
 - 反序列化
 
   在反序列化的时候jvm会创建一个单独的对象，但是不会调用任何构造函数。为了实现序列化/反序列化，需要实现Seralizable接口
+
+### new 一个对象的过程
+
+https://cloud.tencent.com/developer/article/1529790
+
+https://www.cnblogs.com/daijiting/p/9960783.html
 
 ## 序列化和反序列化
 
@@ -1751,3 +1775,42 @@ try {
 深拷贝：自己重写clone()方法的时候不调用父类super.clone()，自己新创建一个对象。
 
 最好使用拷贝工厂
+
+
+
+
+
+## Java Switch
+
+- 能用switch判断的类型：byte、short、int、char还有枚举类型，在JDK7以后新增了String 类型
+- 如果case语句没有写break，编译器不会报错，但会执行**之后所有case里的语句，不再进行判断**
+
+- default 并不是必须的，可以不写
+
+```java
+/*
+     * case语句中少写了break，编译不会报错
+     *     但是会一直执行之后所有case条件下的语句，并不再进行判断，直到default语句
+     *    
+     */
+    private static void breakTest() {
+        char ch = 'A';
+        switch (ch) {
+        case 'B':
+            System.out.println("case one");
+
+        case 'A':
+            System.out.println("case two");
+
+        case 'C':
+            System.out.println("case three");
+        default:
+            break;
+        }
+    }
+输出如下：
+--------------------------
+    case two
+    case three
+```
+

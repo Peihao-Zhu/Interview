@@ -12,7 +12,11 @@ ThreadLocal不是用来解决共享对象的多线程访问的，其使得各个
 
 ## ThreadLocal的内部结构
 
-![WeChat5ac2608c26caa9cf22cff6ebe8b64173](/Users/zhupeihao/Library/Containers/com.tencent.xinWeChat/Data/Library/Caches/com.tencent.xinWeChat/2.0b4.0.9/1ab32f76abfa38116a670b7ac59c1027/dragImgTmp/WeChat5ac2608c26caa9cf22cff6ebe8b64173.png)
+https://www.jianshu.com/p/cb08ce43eaa2
+
+threadlocal.cn
+
+![img](https://cdn.jsdelivr.net/gh/Peihao-Zhu/blogImage@master/data/20201110202059)
 
 - 每个Thread都有一个Map
 - Map里面存储了本地对象(ThreadLocal)和线程的变量副本（value）
@@ -36,7 +40,7 @@ public void set(T value)
 public void remove()
 ```
 
-#### get()方法
+**get()方法**
 
 ```java
 /**
@@ -104,6 +108,25 @@ static class Entry extends WeakReference<ThreadLocal> {
 
 Entry继承自WeakReference（弱引用，生命周期只能存活到下次GC），**但只有Key是弱引用类型的，Value并非弱引用。**
 
+
+
+## 数据存放在哪里
+
+```java
+//声明一个ThreadLocal变量b，此时开辟了一块内存，里面存放的b对象
+ThreadLocal<Integer> b = new ThreadLocal<Integer>();
+
+//注意，这里不是赋值，赋值是=操作符
+b.set(10)
+```
+
+**注意：**
+
+- 10并不是放在b里面，两个是独立的关系
+- 10和b是两个独立存放的变量，如果一个被清理，另一个不受影响
+
+这里这两个变量分别存放在线程自身的ThreadLocalMap的Entry中，一个是key，另一个是value
+
 ## Hash冲突怎么解决
 
 和HashMap的最大的不同在于，ThreadLocalMap结构非常简单，没有next引用，也就是说ThreadLocalMap中解决Hash冲突的方式并非链表的方式，而是采用**线性探测**的方式，所谓线性探测，就是根据初始key的hashcode值确定元素在table数组中的位置，如果发现这个位置上已经有其他key值的元素被占用，则利用固定的算法寻找一定步长的下个位置，依次判断，直至找到能够存放的位置。
@@ -114,7 +137,7 @@ Entry继承自WeakReference（弱引用，生命周期只能存活到下次GC）
 
 ## ThreadLocalMap的问题
 
-由于ThreadLocalMap的key是弱引用，而Value是强引用。这就导致了一个问题，ThreadLocal在没有外部对象强引用时，发生GC时弱引用Key会被回收，而Value不会回收，如果创建ThreadLocal的线程一直持续运行，那么这个Entry对象中的value就有可能一直得不到回收，发生内存泄露。
+由于ThreadLocalMap的key是弱引用，而Value是强引用。这就导致了一个问题，ThreadLocal在没有外部对象强引用时，发生GC时弱引用Key会被回收，而Value不会回收，如果创建ThreadLocal的线程一直持续运行，那么ThreadLocalMap会一直存在，这个Entry对象也会一直存在，这个Entry对象中的value就有可能一直得不到回收，发生内存泄露。
 
 **如何避免泄漏**
  既然Key是弱引用，那么我们要做的事，就是在调用ThreadLocal的get()、set()方法时完成后再调用remove方法，**将Entry节点和Map的引用关系移除**，这样整个Entry对象在GC Roots分析后就变成不可达了，下次GC的时候就可以被回收。
@@ -161,7 +184,7 @@ public static Session getCurrentSession(){
 
 
 
-**使用ThreadLocal的典型场景如数据库连接管理，线程会话管理等场景**，只适用于独立变量副本的情况，如果变量为全局共享的，则不适用在高并发下使用。
+**使用ThreadLocal的典型场景如数据库连接管理，线程会话管理等场景**，只适用于独立变量副本的情况，如果变量为全局共享的，则不适用在高并发下使用。(你想啊，这个ThreadLoca本身就是把各个变量变成线程的副本，也就是说线程隔离，如果是共享变量那应该是各个线程都能访问到啊，肯定不能用ThreadLocal了)
 
 ## 总结
 
