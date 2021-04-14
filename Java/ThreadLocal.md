@@ -2,11 +2,25 @@
 
 https://www.jianshu.com/p/98b68c97df9b
 
+https://zhuanlan.zhihu.com/p/60375306
+
+用比较通俗的语言讲解了ThreadLocal
+
 ## ThreadLocal是什么
 
 ThreadLocal不是用来解决共享对象的多线程访问的，其使得各个线程能够保持各自独立的对象。每个线程的变量互不干扰，在高并发场景下，可以实现无状态调用。
 
 介绍完可能还是有点懵逼，再多讲一下：在并发编程的时候，成员变量如果不做任何处理是线程不安全的，各个线程都在操作同一个变量，显然是不行的，也就是说让这个变量的作用域变成线程的作用域（这里的作用域可以想到类中变量的作用域，全局变量和局部变量），线程一般可以横跨几个函数，所以ThreadLocal变量也能横跨这几个函数(不然总不能每个函数都传入线程上下文contex吧....)
+
+
+
+其实根据我们最初的印象（JDBC中根据ThreadLocal获取connection），ThreadLocal就像一个map，key存储对应的线程，value存值。因此可以通过这个ThreadLocal可以让变量实现线程隔离。
+
+![img](https://pic2.zhimg.com/80/v2-c085e35fa22ff384095a9e2f372e686d_1440w.jpg)
+
+确实在ThreadLocal的早期版本中是这样实现的，但是在JDK8以后他的实现方式如下一节所示：
+
+
 
 
 
@@ -127,6 +141,27 @@ b.set(10)
 
 这里这两个变量分别存放在线程自身的ThreadLocalMap的Entry中，一个是key，另一个是value
 
+
+
+**既然东西都是存在ThreaLocalMap里，那能不能直接对其进行操作呢，抛开ThreadLocal？**
+
+发现ThreaLocalMap是ThreadLocal的一个静态内部类，并且不是public类型，是default类型，是不能被包外的其他类访问的。所以只能使用ThreadLocal中的createMap方法来创建这个Map
+
+```java
+public class ThreadLocal<T> {
+		void createMap(Thread t, T firstValue) {
+        t.threadLocals = new ThreadLocalMap(this, firstValue);
+    }
+
+    static class ThreadLocalMap {
+    }
+}
+```
+
+**那么为什么需要有ThreadLocal这个工具类的存在呢？**
+
+防止线程直接对ThreadLocalMap进行操作。
+
 ## Hash冲突怎么解决
 
 和HashMap的最大的不同在于，ThreadLocalMap结构非常简单，没有next引用，也就是说ThreadLocalMap中解决Hash冲突的方式并非链表的方式，而是采用**线性探测**的方式，所谓线性探测，就是根据初始key的hashcode值确定元素在table数组中的位置，如果发现这个位置上已经有其他key值的元素被占用，则利用固定的算法寻找一定步长的下个位置，依次判断，直至找到能够存放的位置。
@@ -150,7 +185,7 @@ try {
     threadLocal.set(new Session(1, "Misout的博客"));
     // 其它业务逻辑
 } finally {
-    threadLocal.remove();
+    threadLocal.remove(); // 底层掉的是ThreadLocalMap的remov方法，会讲
 }
 ```
 
@@ -188,6 +223,8 @@ public static Session getCurrentSession(){
 
 ## 总结
 
+- 其实真正实现线程隔离功能的是ThreadLocalMap，ThreadLoca只是作为一个工具类，来对ThreadLocalMap进行set/get操作的。
+- ThreadLocal和线程并没有什么关系，但是ThreadLocalMap和线程是一对一的关系。
 - 每个ThreadLocal只能保存一个变量副本，如果想要上线一个线程能够保存多个副本以上，就需要创建多个ThreadLocal。
 - ThreadLocal内部的ThreadLocalMap键为弱引用，会有内存泄漏的风险。
 - 适用于无状态，副本变量独立后不影响业务逻辑的高并发场景。如果业务逻辑强依赖于副本变量，则不适合用ThreadLocal解决，需要另寻解决方案。

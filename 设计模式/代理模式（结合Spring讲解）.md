@@ -57,6 +57,49 @@ public class helloProxy inplements helloInterface{
 
 #### 动态代理
 
+(真实的Class对象与实例，Class类的关系如下所示)
+
+![img](https://pic1.zhimg.com/80/v2-c9bf695b1b9d2a0ae01cf92501492159_1440w.jpg?source=1940ef5c)
+
+之所以我们对Class对象这么不熟悉，是因为平时都直接用new A()来创建一个实例对象，底层隐藏了所有的细节。
+
+**所以说能否不写代理类，自动就生成代理Class对象呢？(这样就不需要为每一个被代理类写一个对应的代理类了)。**
+
+但是这儿有一个问题，Class对象包含了一个类的所有信息：构造器、方法、字段等等。如果不写这个代理类，那怎么获取这些信息呢？这里需要注意，其实被代理对象和其接口的结构是一样的，所以我们可以从其接口那里得到本来是由代理类提供的信息。
+
+那么如何得到呢？
+
+接下来就看一下JDK提供的Proxy类和InvocationHandler接口
+
+##### Proxy类
+
+Proxy是java.lang.reflect 包下的
+
+这里介绍几个重要的方法
+
+**getProxyClass**
+
+```java
+public static Class<?> getProxyClass(ClassLoader loader,
+                                         Class<?>... interfaces)
+```
+
+通过传入类加载器和接口数组，返回代理类Class对象（核心就是拷贝接口的结构信息到新的Class对象，并且带有构造器，可以进行实例化）
+
+这里代理类Class对象是在类加载器中被define，并且需要实现所有的接口。这些接口的代理类Class是被动态生成的。
+
+![img](https://pic1.zhimg.com/80/v2-6b091b6d41bae1f88ba74a510acb24b1_1440w.jpg?source=1940ef5c)
+
+##### InvocationHandler接口
+
+发现上面的例子中，根据代理Class对象的构造器创建实例对象的时候，需要传入InvocationHandler。这个InvocationHandler是一个接口，内部只申明了invok()这个方法
+
+可以看到这里new Instance()内部传了这个引用，也就是说调用了有这个引用作为参数的构造器。那么在代理对象中确实有一个成员变量invocationHandler，而且代理对象的每个方法内部都会调用handler.invoke()。
+
+但上面这种写法还不够优雅，因为想换个接口获取代理类Class对象的时候，都需要修改接口的Class对象。这里可以让被代理对象作为目标参数被传进来。
+
+##### 具体例子
+
 ```java
 //接口
 public interface HelloInterface{
@@ -69,8 +112,8 @@ public class hello inplements helloInterface{
 		System.out.println("Hello man");
 	}
 }
-//InvocationHandler 类
-public class helloProxy {
+//实现 InvocationHandler 类
+public class helloProxy implements InvocationHandler {
 	private Object subject;
 	
   public helloProxy(Object subject){
@@ -80,7 +123,7 @@ public class helloProxy {
 	@Override
 	public Object invoke(Object proxy, Method method, Object[] args)throws Throwable{
 		System.out.println("Before"+method.getName());
-		method.invoke(subject,args);
+		method.invoke(subject, args);
 		System.out.println("After"+,method.getName());
     return null;
 	}
@@ -93,15 +136,39 @@ public class client{
     Hello hello=new Hello();
     InvocationHandler handler=new HelloProxy(hello);
     
+    // 这个 helloInterface 实质上是一个代理对象
     HelloInterface helloInterface=(HelloInterface)Proxy.newProxyInstance(handler.getClass().getClassLoader(),hello.getClass().getInterface(),handler);
-    helloInterface.sayHello();
+    helloInterface.sayHello();  // 会自动进入代理类的invoke方法
   }
 }
 ```
 
-可以发现在动态代理也要创建代理类，以及被代理类都要实现接口。但是和静态代理的区别也比较明显----在静态代理中需要对哪个接口和那个被代理类创建代理类，在编译前就需要代理类实现与被代理类相同的接口，并且在实现的方法中调用被代理类相应的方法；**但是动态代理不同，我们不知道要针对哪个接口、哪个被代理类创建代理类，这个操作是在运行时被创建的。**
+可以发现在动态代理也要创建代理类，以及被代理类都要实现接口。
+
+##### 静态代理和动态代理的区别
+
+- 创建代理对象的方式不同
+
+静态代理：我们自己手动生成的
+
+动态代理：JDK通过反射动态生成的代理类生成的代理对象
+
+- 代理类的Class文件的存活周期
+
+静态代理：我们自己写的代理类，编译得到.class文件，被加载器加载到内存后生成Class对象
+
+动态代理：代理类的.class文件，在编译的时候编译器获取到的，然后在被加载到内存以后，class文件会被删除
+
+- 代理类的实现方式
+
+静态代理：需要对哪个接口和哪个被代理类创建代理类，在编译前就需要代理类实现与被代理类相同的接口，并且在实现的方法中调用被代理类相应的方法；
+**动态代理：我们不知道要针对哪个接口、哪个被代理类创建代理类，这个操作是在运行时被创建的。**
+
+
 
 更详细的说JDK静态代理是通过直接编码创建的，而JDK动态代理是利用**反射机制**在运行时创建代理类。其中在动态代理中，核心是InvocationHandler。每一个代理的实例都会有一个关联的调用处理程序（InvocationHandler）。对代理实例进行调用时（hello），将其方法的调用进行编码并指派到他的调用处理器（InvocationHandler）的invoke方法中完成，而invoke方法会根据传入的代理对象，方法名称，参数决定调用代理的哪个方法。
+
+
 
 **JDK动态代理使用步骤**
 
@@ -126,6 +193,12 @@ public class JdkProxyFactory {
 `getProxy()` ：主要通过`Proxy.newProxyInstance（）`方法获取某个类的代理对象
 
 **这里总结一下JDK动态代理：代理对象不需要实现接口，但是目标对象一定要实现接口，否则不能动态代理，因为newProxyInstance的第二个参数需要传入目标对象的接口**
+
+
+
+##### 扩展
+
+https://zhuanlan.zhihu.com/p/63126398
 
 
 
